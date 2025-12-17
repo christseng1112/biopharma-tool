@@ -1,43 +1,90 @@
-Change Log - Integrated Tool
+Changelog
 
-[v29.1] - 2025-05-20
+All notable changes to the Biopharma Production Integration Tool will be documented in this file.
+
+The format is based on Keep a Changelog,
+and this project adheres to Semantic Versioning.
+
+[v30.6] - 2025-05-20 (Latest Stable)
 
 Fixed
 
-React Key Duplication Error:
+Critical Reference Error: Fixed ReferenceError: App is not defined by correcting component scope and syntax structure in the un-minified code.
 
-Fixed a critical console error where duplicate keys were generated in the <select> dropdowns within AutoclaveModule.
+Robust Name Normalization: Updated the normalizeName regex logic to aggressively ignore whitespace around quotation marks.
 
-This occurred because normalization (removing "Type Z" suffixes) caused different catalog items to have identical display names.
+Scenario: 1/2” C-Flex and 1/2”C-Flex are now treated as identical, preventing "Unassignable" errors caused by minor typo differences between Catalog and Patterns.
 
-Implementation: Added [...new Set(...)] deduplication logic to groupAItems, groupBItems, and DEFAULT_AUTOCLAVE_PATTERNS initialization.
+Global Error Handler: Added window.onerror to capture and alert runtime errors, preventing "White Screen of Death" silent failures.
 
-[v29.0] - 2025-05-19
+[v30.3] - 2025-05-20
+
+Fixed
+
+Strict Data Synchronization: Performed a character-by-character sync between DEFAULT_CATALOG and DEFAULT_AUTOCLAVE_PATTERNS.
+
+Specific Typo Fixes:
+
+Fixed SOP No.6 (1/2”C- Flex-1/2”) incorrectly defaulting to Pattern 1 due to an extra space in Pattern 5's rule.
+
+Fixed SOP No.3 (3/8”Silicone) appearing as unassignable due to a missing space in the catalog vs pattern.
+
+[v30.0] - 2025-05-20
 
 Added
 
-State Persistence: Lifted manualCart state from AutoclaveModule to the main App component. Manual entries now survive tab switching.
+Backtracking Algorithm (Optimizer): Replaced the simple Greedy algorithm with a Backtracking with Branch & Bound strategy.
 
-Stock Inclusion Toggle: Added a checkbox in the Autoclave tab to optionally include "Stock" items from the Planner in the sterilization queue.
+Benefit: The system now actively searches for the combination that yields the minimum total sterilization cycles, rather than just filling the first available slot.
 
-Optimization: Wrapped the heavy greedy scheduling algorithm in useMemo to improve performance and prevent infinite render loops caused by useEffect.
+Fallback: Includes a performance threshold (MAX_ITERATIONS) to fallback to Greedy mode for extremely large datasets to prevent browser freezing.
+
+[v29.2] - 2025-05-19
+
+Fixed
+
+Data mismatch (Unassignable Items): Fixed issues where 3/8" C-Flex items were rejected by the autoclave calculator due to mismatching spaces in the naming convention (e.g., Type Z removal leftovers).
+
+[v29.1] - 2025-05-19
+
+Fixed
+
+React Key Duplication: Fixed console errors caused by duplicate keys in dropdown menus.
+
+Cause: Normalizing names (removing "Type X") resulted in duplicate entries for React to render.
+
+Fix: Implemented Set based deduplication for all dropdown options.
+
+[v29.0] - 2025-05-19
+
+Changed
+
+State Lifting: Lifted manualCart state from AutoclaveModule to the main App component.
+
+Benefit: Users no longer lose their manually added items (forceps, valves, etc.) when switching between tabs (e.g., from Calc back to Planner).
+
+Performance: Wrapped calculation logic in useMemo to prevent unnecessary re-renders.
+
+Added
+
+Include Stock Option: Added a checkbox to optionally allow "Stock" items from the Planner to be imported into the Sterilization queue (default is strictly Custom Assembly items only).
 
 [v28.0] - 2025-05-18
 
-Merged
+Added
 
-Full Pattern Restoration: Restored all 10 autoclave patterns (including Pattern 2, 4, 5, 7, 8, 9, 10) which were missing in the initial merge.
+Full Pattern Restoration: Restored all 10 autoclave patterns (Patterns 1-10) which were partially missing in the initial merge.
 
-Complex Logic Port: Successfully ported the "Advanced Constraints" logic (nested rules for sub-limits within zones) from the original v13 calculator.
+Complex Constraints: Ported the "Advanced Rules" logic (e.g., "Max 2 Scissors per zone") from the legacy v13 calculator.
 
-Group B Restoration: Restored the full list of Group B items (Equipment & Parts).
+Group B Restoration: Restored the full list of auxiliary equipment (Group B).
 
-[v27.0] - 2025-05-17
+[v27.0] - 2025-05-17 (Initial Merge)
 
-Initial Merge
+Added
 
-Combined Tubing Planner v26.0 and Autoclave Calculator v13.0.
+Integration: Successfully merged Tubing Planner v26.0 and Autoclave Calculator v13.0 into a single HTML file.
 
-Unified database structure (Planner assignments feed into Autoclave queue).
+Unified Database: Established data flow where Planner assignments automatically populate the Autoclave queue.
 
-Removed dependency on localStorage for Autoclave, now using the unified JSON config export.
+File System: Unified JSON Export/Import system for both tools.
