@@ -1,0 +1,43 @@
+Change Log - Integrated Tool
+
+[v29.1] - 2025-05-20
+
+Fixed
+
+React Key Duplication Error:
+
+Fixed a critical console error where duplicate keys were generated in the <select> dropdowns within AutoclaveModule.
+
+This occurred because normalization (removing "Type Z" suffixes) caused different catalog items to have identical display names.
+
+Implementation: Added [...new Set(...)] deduplication logic to groupAItems, groupBItems, and DEFAULT_AUTOCLAVE_PATTERNS initialization.
+
+[v29.0] - 2025-05-19
+
+Added
+
+State Persistence: Lifted manualCart state from AutoclaveModule to the main App component. Manual entries now survive tab switching.
+
+Stock Inclusion Toggle: Added a checkbox in the Autoclave tab to optionally include "Stock" items from the Planner in the sterilization queue.
+
+Optimization: Wrapped the heavy greedy scheduling algorithm in useMemo to improve performance and prevent infinite render loops caused by useEffect.
+
+[v28.0] - 2025-05-18
+
+Merged
+
+Full Pattern Restoration: Restored all 10 autoclave patterns (including Pattern 2, 4, 5, 7, 8, 9, 10) which were missing in the initial merge.
+
+Complex Logic Port: Successfully ported the "Advanced Constraints" logic (nested rules for sub-limits within zones) from the original v13 calculator.
+
+Group B Restoration: Restored the full list of Group B items (Equipment & Parts).
+
+[v27.0] - 2025-05-17
+
+Initial Merge
+
+Combined Tubing Planner v26.0 and Autoclave Calculator v13.0.
+
+Unified database structure (Planner assignments feed into Autoclave queue).
+
+Removed dependency on localStorage for Autoclave, now using the unified JSON config export.
