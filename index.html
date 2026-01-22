@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Integrated Tubing Planner & Autoclave Calc v30.10 (Fix Vars)</title>
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
+
     <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
@@ -20,7 +21,7 @@
 
     <!-- Global Error Handler -->
     <script>
-        window.onerror = function(message, source, lineno, colno, error) {
+        window.onerror = function (message, source, lineno, colno, error) {
             console.error("Global Error:", message, "Line:", lineno);
             alert("⚠️ 程式發生錯誤 (Error):\n" + message + "\nLine: " + lineno);
         };
@@ -28,57 +29,184 @@
 
     <!-- Custom CSS -->
     <style>
-        body { background-color: #ffffff; font-family: sans-serif; }
-        .report-container { font-family: Arial, sans-serif; background-color: white; padding: 5px; }
-        .stage-header { color: #2c3e50; font-size: 1.2rem; font-weight: bold; border-left: 5px solid #ff4b4b; padding-left: 10px; margin-top: 25px; margin-bottom: 10px; background-color: transparent; }
-        .custom-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px; color: #000; }
-        .custom-table th { background-color: #e0e0e0; color: black; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold; }
-        .custom-table td { border: 1px solid black; padding: 8px; vertical-align: middle; background-color: white; color: black; }
-        .diagram-code { font-family: 'Courier New', monospace; font-size: 11px; white-space: pre-wrap; line-height: 1.2; margin-top: 5px; color: #333; }
-        .text-center { text-align: center; }
-        .text-blue { color: blue; font-weight: bold; text-align: center; }
-        .bg-light { background-color: #f9f9f9 !important; text-align: center; }
-        .total-detail { font-size: 0.85em; color: #555; display: block; margin-top: 2px; }
-        .picking-title { font-size: 1.1rem; font-weight: bold; color: #333; margin-top: 20px; border-bottom: 2px solid #ccc; padding-bottom: 5px; }
-        
-        .st-btn { background-color: #ff4b4b; color: white; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 600; transition: background 0.2s; }
-        .st-btn:hover { background-color: #ff3333; }
-        .st-btn:disabled { background-color: #ffcccc; cursor: not-allowed; }
-        .tab-active { border-bottom: 2px solid #ff4b4b; color: #ff4b4b; font-weight: bold; }
-        .tab-inactive { color: #666; }
-        .tab-inactive:hover { color: #ff4b4b; }
+        body {
+            background-color: #ffffff;
+            font-family: sans-serif;
+        }
+
+        .report-container {
+            font-family: Arial, sans-serif;
+            background-color: white;
+            padding: 5px;
+        }
+
+        .stage-header {
+            color: #2c3e50;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-left: 5px solid #ff4b4b;
+            padding-left: 10px;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            background-color: transparent;
+        }
+
+        .custom-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            font-size: 13px;
+            color: #000;
+        }
+
+        .custom-table th {
+            background-color: #e0e0e0;
+            color: black;
+            border: 1px solid black;
+            padding: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .custom-table td {
+            border: 1px solid black;
+            padding: 8px;
+            vertical-align: middle;
+            background-color: white;
+            color: black;
+        }
+
+        .diagram-code {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            white-space: pre-wrap;
+            line-height: 1.2;
+            margin-top: 5px;
+            color: #333;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-blue {
+            color: blue;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .bg-light {
+            background-color: #f9f9f9 !important;
+            text-align: center;
+        }
+
+        .total-detail {
+            font-size: 0.85em;
+            color: #555;
+            display: block;
+            margin-top: 2px;
+        }
+
+        .picking-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #333;
+            margin-top: 20px;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 5px;
+        }
+
+        .st-btn {
+            background-color: #ff4b4b;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .st-btn:hover {
+            background-color: #ff3333;
+        }
+
+        .st-btn:disabled {
+            background-color: #ffcccc;
+            cursor: not-allowed;
+        }
+
+        .tab-active {
+            border-bottom: 2px solid #ff4b4b;
+            color: #ff4b4b;
+            font-weight: bold;
+        }
+
+        .tab-inactive {
+            color: #666;
+        }
+
+        .tab-inactive:hover {
+            color: #ff4b4b;
+        }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
-        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
-        .custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
-        .cursor-help { cursor: help; }
+
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        .custom-scroll::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        .cursor-help {
+            cursor: help;
+        }
     </style>
 </head>
+
 <body>
 
-<div id="root"></div>
+    <div id="root"></div>
 
-<script type="text/babel">
-    const { useState, useEffect, useMemo, useRef, useCallback } = React;
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-    // --- SHARED UTILITIES ---
-    const normalizeName = (name) => {
-        if (!name) return "";
-        let n = name;
-        n = n.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
-        n = n.replace(/\s*\(Type\s+[A-Za-z0-9]+\)/i, "");
-        n = n.replace(/([”"’'])\s+([A-Za-z])/g, '$1$2'); // Fix spaces around quotes
-        return n.trim();
-    };
+        // --- SHARED UTILITIES ---
+        const normalizeName = (name) => {
+            if (!name) return "";
+            let n = name;
+            n = n.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+            n = n.replace(/\s*\(Type\s+[A-Za-z0-9]+\)/i, "");
+            n = n.replace(/([”"’'])\s+([A-Za-z])/g, '$1$2'); // Fix spaces around quotes
+            return n.trim();
+        };
 
-    // --- CSS STRING FOR EXPORTS ---
-    const CSS_STRING = `
+        // --- CSS STRING FOR EXPORTS ---
+        const CSS_STRING = `
         <style>
         .report-container { font-family: Arial, sans-serif; background-color: white; padding: 5px; }
         .stage-header { color: #2c3e50; font-size: 1.2rem; font-weight: bold; border-left: 5px solid #ff4b4b; padding-left: 10px; margin-top: 25px; margin-bottom: 10px; background-color: transparent; }
@@ -94,500 +222,501 @@
         </style>
     `;
 
-    // --- ALGORITHM: BACKTRACKING OPTIMIZER ---
-    const simulateLoad = (inventory, pattern) => {
-        const tempInv = inventory.map(i => ({ ...i }));
-        let totalLoaded = 0;
-        const loadPlan = [];
-        const zoneUsage = pattern.zones.map(z => ({ ...z, used: 0, assignedItems: {} }));
+        // --- ALGORITHM: BACKTRACKING OPTIMIZER ---
+        const simulateLoad = (inventory, pattern) => {
+            const tempInv = inventory.map(i => ({ ...i }));
+            let totalLoaded = 0;
+            const loadPlan = [];
+            const zoneUsage = pattern.zones.map(z => ({ ...z, used: 0, assignedItems: {} }));
 
-        for (let i = 0; i < zoneUsage.length; i++) {
-            const zone = zoneUsage[i];
-            const candidates = tempInv.filter(inv => zone.allowed.includes(inv.item) && inv.qty > 0);
-            for (const cand of candidates) {
-                let space = zone.capacity - zone.used;
-                if (zone.rules) {
-                    for (const rule of zone.rules) {
-                        if (rule.items.includes(cand.item)) {
-                            let currentRuleUsage = 0;
-                            rule.items.forEach(ruleItem => { currentRuleUsage += (zone.assignedItems[ruleItem] || 0); });
-                            space = Math.min(space, rule.max - currentRuleUsage);
+            for (let i = 0; i < zoneUsage.length; i++) {
+                const zone = zoneUsage[i];
+                const candidates = tempInv.filter(inv => zone.allowed.includes(inv.item) && inv.qty > 0);
+                for (const cand of candidates) {
+                    let space = zone.capacity - zone.used;
+                    if (zone.rules) {
+                        for (const rule of zone.rules) {
+                            if (rule.items.includes(cand.item)) {
+                                let currentRuleUsage = 0;
+                                rule.items.forEach(ruleItem => { currentRuleUsage += (zone.assignedItems[ruleItem] || 0); });
+                                space = Math.min(space, rule.max - currentRuleUsage);
+                            }
                         }
                     }
-                }
-                if (space > 0) {
-                    const take = Math.min(space, cand.qty);
-                    zone.used += take;
-                    zone.assignedItems[cand.item] = (zone.assignedItems[cand.item] || 0) + take;
-                    cand.qty -= take;
-                    totalLoaded += take;
-                    loadPlan.push(`[${zone.name}] ${take}x ${cand.item}`);
-                }
-            }
-        }
-        return { loadedCount: totalLoaded, loadPlan, remainingInv: tempInv };
-    };
-
-    const runGreedySimulation = (inventory, patterns) => {
-        let currentInventory = inventory.map(i => ({ ...i }));
-        const schedule = [];
-        let safety = 0;
-        while (currentInventory.some(i => i.qty > 0) && safety++ < 100) {
-            let best = null;
-            let maxLoaded = -1;
-            for (const p of patterns) {
-                const res = simulateLoad(currentInventory, p);
-                if (res.loadedCount > maxLoaded) {
-                    maxLoaded = res.loadedCount;
-                    best = { pattern: p, ...res };
+                    if (space > 0) {
+                        const take = Math.min(space, cand.qty);
+                        zone.used += take;
+                        zone.assignedItems[cand.item] = (zone.assignedItems[cand.item] || 0) + take;
+                        cand.qty -= take;
+                        totalLoaded += take;
+                        loadPlan.push(`[${zone.name}] ${take}x ${cand.item}`);
+                    }
                 }
             }
-            if (!best || best.loadedCount === 0) break;
-            currentInventory = best.remainingInv;
-            schedule.push({ pattern: best.pattern, loadedItems: best.loadPlan });
-        }
-        return schedule;
-    };
+            return { loadedCount: totalLoaded, loadPlan, remainingInv: tempInv };
+        };
 
-    const calculateSchedule = (inventory, patterns) => {
-        const allAllowedItems = new Set(patterns.flatMap(p => p.zones.flatMap(z => z.allowed)));
-        const cleanInventory = [];
-        const unassignable = [];
-        inventory.forEach(item => {
-            if (allAllowedItems.has(item.item)) cleanInventory.push({ ...item });
-            else unassignable.push({ ...item });
-        });
-
-        if (cleanInventory.length === 0) return { schedule: [], unassignable };
-
-        let bestSchedule = runGreedySimulation(cleanInventory, patterns);
-        let minCycles = bestSchedule.length;
-
-        const totalItems = cleanInventory.reduce((s, i) => s + i.qty, 0);
-        if (totalItems < 50) { 
-            const MAX_ITERATIONS = 3000;
-            let iterations = 0;
-            const solve = (currentInv, currentPath) => {
-                iterations++;
-                if (iterations > MAX_ITERATIONS) return;
-                if (currentPath.length >= minCycles) return;
-                if (currentInv.every(i => i.qty <= 0)) {
-                    minCycles = currentPath.length;
-                    bestSchedule = [...currentPath];
-                    return;
+        const runGreedySimulation = (inventory, patterns) => {
+            let currentInventory = inventory.map(i => ({ ...i }));
+            const schedule = [];
+            let safety = 0;
+            while (currentInventory.some(i => i.qty > 0) && safety++ < 100) {
+                let best = null;
+                let maxLoaded = -1;
+                for (const p of patterns) {
+                    const res = simulateLoad(currentInventory, p);
+                    if (res.loadedCount > maxLoaded) {
+                        maxLoaded = res.loadedCount;
+                        best = { pattern: p, ...res };
+                    }
                 }
-                const candidates = [];
-                for (const pattern of patterns) {
-                    const res = simulateLoad(currentInv, pattern);
-                    if (res.loadedCount > 0) candidates.push({ pattern, ...res });
-                }
-                candidates.sort((a, b) => b.loadedCount - a.loadedCount);
-                for (const cand of candidates) {
-                    const cycleData = { pattern: cand.pattern, loadedItems: cand.loadPlan };
-                    solve(cand.remainingInv, [...currentPath, cycleData]);
-                }
+                if (!best || best.loadedCount === 0) break;
+                currentInventory = best.remainingInv;
+                schedule.push({ pattern: best.pattern, loadedItems: best.loadPlan });
+            }
+            return schedule;
+        };
+
+        const calculateSchedule = (inventory, patterns) => {
+            const allAllowedItems = new Set(patterns.flatMap(p => p.zones.flatMap(z => z.allowed)));
+            const cleanInventory = [];
+            const unassignable = [];
+            inventory.forEach(item => {
+                if (allAllowedItems.has(item.item)) cleanInventory.push({ ...item });
+                else unassignable.push({ ...item });
+            });
+
+            if (cleanInventory.length === 0) return { schedule: [], unassignable };
+
+            let bestSchedule = runGreedySimulation(cleanInventory, patterns);
+            let minCycles = bestSchedule.length;
+
+            const totalItems = cleanInventory.reduce((s, i) => s + i.qty, 0);
+            if (totalItems < 50) {
+                const MAX_ITERATIONS = 3000;
+                let iterations = 0;
+                const solve = (currentInv, currentPath) => {
+                    iterations++;
+                    if (iterations > MAX_ITERATIONS) return;
+                    if (currentPath.length >= minCycles) return;
+                    if (currentInv.every(i => i.qty <= 0)) {
+                        minCycles = currentPath.length;
+                        bestSchedule = [...currentPath];
+                        return;
+                    }
+                    const candidates = [];
+                    for (const pattern of patterns) {
+                        const res = simulateLoad(currentInv, pattern);
+                        if (res.loadedCount > 0) candidates.push({ pattern, ...res });
+                    }
+                    candidates.sort((a, b) => b.loadedCount - a.loadedCount);
+                    for (const cand of candidates) {
+                        const cycleData = { pattern: cand.pattern, loadedItems: cand.loadPlan };
+                        solve(cand.remainingInv, [...currentPath, cycleData]);
+                    }
+                };
+                solve(cleanInventory, []);
+            }
+            const finalSchedule = bestSchedule.map((c, i) => ({ ...c, cycleNumber: i + 1 }));
+            return { schedule: finalSchedule, unassignable };
+        };
+
+        // --- ICONS ---
+        const Icon = ({ path, className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{path}</svg>
+        );
+        const Icons = {
+            Plus: (props) => <Icon {...props} path={<><path d="M5 12h14" /><path d="M12 5v14" /></>} />,
+            Trash2: (props) => <Icon {...props} path={<><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></>} />,
+            Package: (props) => <Icon {...props} path={<><path d="m16.5 9.4-9-5.19" /><path d="m21 16-9 5.19-9-5.19" /><path d="m12 12v8.5" /><path d="M12 12 3 6.81 12 1.6l9 5.21Z" /><path d="M12 12 21 6.81" /><path d="m16.5 9.4 4.5-2.6" /><path d="m3.27 6.96 4.5 2.6" /></>} />,
+            Info: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></>} />,
+            AlertCircle: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" /></>} />,
+            RefreshCw: (props) => <Icon {...props} path={<><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></>} />,
+            Settings: (props) => <Icon {...props} path={<><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></>} />,
+            Save: (props) => <Icon {...props} path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></>} />,
+            RotateCcw: (props) => <Icon {...props} path={<><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></>} />,
+            ArrowRight: (props) => <Icon {...props} path={<><line x1="5" x2="19" y1="12" y2="12" /><polyline points="12 5 19 12 12 19" /></>} />,
+            Edit2: (props) => <Icon {...props} path={<><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /></>} />,
+            ChevronDown: (props) => <Icon {...props} path={<><polyline points="6 9 12 15 18 9" /></>} />,
+            ChevronUp: (props) => <Icon {...props} path={<><polyline points="18 15 12 9 6 15" /></>} />,
+            X: (props) => <Icon {...props} path={<><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>} />,
+            ShieldAlert: (props) => <Icon {...props} path={<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>} />,
+        };
+
+        // --- DATA (RAW JSON ARRAYS) ---
+        const DEFAULT_COMPONENTS = { 'B0327': { 'Name': '1/2"x3/4" C-Flex 374 tubing (A)', 'Unit': 'cm' }, 'B0326': { 'Name': '3/8"x5/8" C-Flex 374 tubing (B)', 'Unit': 'cm' }, 'B0328': { 'Name': '1/4"x7/16" C-Flex 374 tubing (C)', 'Unit': 'cm' }, 'B0325': { 'Name': '1/8"x1/4" C-Flex 374 tubing (D)', 'Unit': 'cm' }, 'B0129': { 'Name': 'Braided Platinum Silicone Hose 1" (E)', 'Unit': 'cm' }, 'B0069': { 'Name': 'Pump Grade Silicone Tubing 1/2"x3/4" (F)', 'Unit': 'cm' }, 'B0042': { 'Name': 'Pump Grade Silicone Tubing 3/8"x5/8" (G)', 'Unit': 'cm' }, 'B0043': { 'Name': 'Pump Grade Silicone Tubing 1/4"x7/16" (H)', 'Unit': 'cm' }, 'B0044': { 'Name': 'Pump Grade Silicone Tubing 1/8"x1/4" (I)', 'Unit': 'cm' }, 'B0191': { 'Name': 'Reducer 1/2 to 3/8 Hose Barbs', 'Unit': 'ea' }, 'B0307': { 'Name': 'Reducer 1/2 to 1/4 Hose Barbs', 'Unit': 'ea' }, 'B0190': { 'Name': 'Reducer 3/8 to 1/4 Hose Barbs', 'Unit': 'ea' }, 'B0308': { 'Name': 'Reducer 1/4 to 1/8 Hose Barbs', 'Unit': 'ea' }, 'B0189': { 'Name': 'Straight 1/2 Hose Barbs (N/X)', 'Unit': 'ea' }, 'B0188': { 'Name': 'Straight 3/8 Hose Barbs (O/X)', 'Unit': 'ea' }, 'B0187': { 'Name': 'Straight 1/4 Hose Barbs (P)', 'Unit': 'ea' }, 'B0310': { 'Name': 'Straight 1/8 Hose Barbs (Q)', 'Unit': 'ea' }, 'B0073': { 'Name': '1/2" Y connector, PP (R)', 'Unit': 'ea' }, 'B0072': { 'Name': '3/8" Y connector, PP (S)', 'Unit': 'ea' }, 'B0309': { 'Name': 'Y connector, 1/8 ID Tubing (T)', 'Unit': 'ea' }, 'B0371': { 'Name': 'Y Tube Fitting, 1/2" ID, PVDF', 'Unit': 'ea' }, 'B0127': { 'Name': 'T connector 1.5"X1" (U)', 'Unit': 'ea' }, 'B0008': { 'Name': 'ReadyMate DAC 375 - 3/8in connector (AA)', 'Unit': 'ea' }, 'B0009': { 'Name': 'ReadyMate DAC 500 - 1/2in connector (Z)', 'Unit': 'ea' }, 'B0013': { 'Name': 'ReadyMate DAC 750 Mini TC connector (Y)', 'Unit': 'ea' }, 'B0018': { 'Name': 'Lynx ST connector-1 in. (AC)', 'Unit': 'ea' }, 'B0370': { 'Name': 'Sanitary Fitting, Maxi Flange to 1" Barb (V)', 'Unit': 'ea' }, 'B0369': { 'Name': 'Sanitary Fitting, Mini Flange to 1/2" Barb (W)', 'Unit': 'ea' }, 'C0068': { 'Name': 'Midisart 2000 Air Filter (AD)', 'Unit': 'ea' }, 'C0067': { 'Name': 'Midisart 2000 Air Filter 1/8"-3/8" (AE)', 'Unit': 'ea' }, 'C0001': { 'Name': 'SciPres pressure sensor 1" TC (AB)', 'Unit': 'ea' } };
+        const DEFAULT_CATALOG = { 1: { 'Name': '3/8” C-Flex-1/4” Silicone Tubing Set', 'Stock_Code': null }, 2: { 'Name': '1/4” Pump Tubing Set', 'Stock_Code': null }, 3: { 'Name': '3/8” C-Flex-3/8”Silicone Tubing Set', 'Stock_Code': null }, 4: { 'Name': '1/2” C-Flex-3/8” Pump Tubing Set', 'Stock_Code': null }, 5: { 'Name': '1/2”C- Flex-3/8” Silicone Tubing Set', 'Stock_Code': null }, 6: { 'Name': '1/2”C- Flex-1/2” Silicone Tubing Set', 'Stock_Code': null }, 7: { 'Name': '1/2” to 3/8” C-Flex tubing set', 'Stock_Code': 'B0315' }, 8: { 'Name': '1/2”-1/2”-1/2” pump tubing set', 'Stock_Code': null }, 9: { 'Name': '3/8”-1/4”-3/8” pump tubing set', 'Stock_Code': 'B0312' }, 10: { 'Name': '3/8”-1/4”-1/4” pump tubing set', 'Stock_Code': 'B0066' }, 11: { 'Name': '1/8”-1/8”-1/8” pump tubing set', 'Stock_Code': 'B0313' }, 12: { 'Name': '1/8”-1/4”-1/8” FoamAway pump tubing set', 'Stock_Code': null }, 13: { 'Name': '1/2" C-Flex 45 w/ ReadyMate (Type Z)', 'Stock_Code': null }, 132: { 'Name': '1/2" C-Flex 45 w/ ReadyMate (Type Y)', 'Stock_Code': null }, 14: { 'Name': '3/8" C-Flex 45 w/ ReadyMate (Type AA)', 'Stock_Code': null }, 142: { 'Name': '3/8" C-Flex 45 w/ ReadyMate (Type Y)', 'Stock_Code': null }, 15: { 'Name': '1/2” Y tubing set', 'Stock_Code': 'B0316' }, 16: { 'Name': '3/8” Y tubing set', 'Stock_Code': null }, 17: { 'Name': '1/8” Y tubing set', 'Stock_Code': 'B0314' }, 18: { 'Name': 'Connected T-tubing Set', 'Stock_Code': 'B0420 / B0423' }, 19: { 'Name': '1” Braided Silicone Tubing connect Pumpskid and Scilog', 'Stock_Code': null }, 20: { 'Name': 'Exhaust Tubing Set', 'Stock_Code': null }, 21: { 'Name': 'Pump Tubing Set 620', 'Stock_Code': null }, 22: { 'Name': 'SciPres pressure sensor', 'Stock_Code': null }, 23: { 'Name': '45 cm 1/2” Sterile Tubing Set', 'Stock_Code': null }, 24: { 'Name': '60 cm 1/2” Sterile Tubing Set with Scilog', 'Stock_Code': null }, 25: { 'Name': 'Sampling Tubing Set', 'Stock_Code': 'B0422' }, 26: { 'Name': '1” Braided Silicone Tubing Set', 'Stock_Code': 'B0421' }, 27: { 'Name': '1/8” C-Flex Tubing Set', 'Stock_Code': null }, 28: { 'Name': '3/8” C-Flex Tubing Set', 'Stock_Code': null }, 29: { 'Name': '1/2” C-Flex Tubing Set', 'Stock_Code': null }, 30: { 'Name': '3/8” C-Flex-1/2” Silicone Tubing Set', 'Stock_Code': null } };
+        const DEFAULT_DIAGRAMS = { 1: "AD [ (B) 30cm ] - L - [ (H) 30cm ] Empty", 2: "Empty [ (H) 100cm ] Empty", 3: "AD [ (B) 30cm ] - O - [ (G) 30cm ] Empty", 4: "AD [ (A) 30cm ] - J - [ (G) 100cm ] Empty", 5: "AD [ (A) 30cm ] - J - [ (G) 30cm ] Empty", 6: "AD [ (A) 30cm ] - N - [ (F) 30cm ] Empty", 7: "AD [ (A) 45cm ] - J - [ (B) 45cm ] AD", 8: "AD [ (A) 30cm ] - N - [ (F) 60cm ] - N - [ (A) 30cm ] AD", 9: "AD [ (B) 30cm ] - L - [ (H) 60cm ] - L - [ (B) 30cm ] AD", 10: "AD [ (B) 30cm ] - L - [ (H) 60cm ] - P - [ (C) 30cm ] AD", 11: "AE [ (D) 30cm ] - Q - [ (I) 60cm ] - Q - [ (D) 30cm ] AE", 12: "AE [ (D) 45cm ] - M - [ (H) 70cm ] - M - [ (D) 45cm ] AE", 13: "Z(RM 1/2) [ (A) 45cm ] AD", 132: "Y(Mini TC) - X(SS) - [ (A) 45cm ] - AD", 14: "AA(RM 3/8) [ (B) 45cm ] AD", 142: "Y(Mini TC) - X(SS) - [ (B) 45cm ] - AD", 15: "AD -- (A 60cm) -- R -- (A 60cm) -- AD\n                   |\n              (A 60cm) -- AD", 16: "AD -- (B 60cm) -- S -- (B 60cm) -- AD\n                   |\n              (B 60cm) -- AD", 17: "AE -- (D 60cm) -- T -- (D 60cm) -- AE\n                   |\n              (D 60cm) -- AE", 18: "             V\n             |\n          (E 45cm)\n             |\n V -- (E 60cm) -- U -- (E 60cm) -- V", 19: "AB [ SciPres ] -- V -- (E 80cm) -- V", 20: "AC [ Lynx ] --- (E 60cm) --- V", 21: "Empty [ (F) 200cm ] W (Mini TC)", 22: "[ SciPres Sensor ] (AB/C0001)", 23: "W <--- (A 45cm) ---> AD", 24: "AB [ SciPres ] - W <--- (A 60cm) ---> AD", 25: "AD [(A) 30cm] - K - [(H) 30cm] - M - [(D) 30cm] AE", 26: "V <--- (E 80cm) ---> V", 27: "AE [ (D) 90cm ] AE", 28: "AD [ (B) 90cm ] AD", 29: "AD [ (A) 90cm ] AD", 30: "AD [ (B) 30cm ] - J - [ (F) 30cm ] Empty" };
+        const DEFAULT_BOM = { 1: [{ 'Code': 'B0326', 'Len': 30, 'Count': 1 }, { 'Code': 'B0043', 'Len': 30, 'Count': 1 }, { 'Code': 'B0190', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }], 2: [{ 'Code': 'B0043', 'Len': 100, 'Count': 1 }], 3: [{ 'Code': 'B0326', 'Len': 30, 'Count': 1 }, { 'Code': 'B0042', 'Len': 30, 'Count': 1 }, { 'Code': 'B0188', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }], 4: [{ 'Code': 'B0327', 'Len': 30, 'Count': 1 }, { 'Code': 'B0042', 'Len': 100, 'Count': 1 }, { 'Code': 'B0191', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }], 5: [{ 'Code': 'B0327', 'Len': 30, 'Count': 1 }, { 'Code': 'B0042', 'Len': 30, 'Count': 1 }, { 'Code': 'B0191', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }], 6: [{ 'Code': 'B0327', 'Len': 30, 'Count': 1 }, { 'Code': 'B0069', 'Len': 30, 'Count': 1 }, { 'Code': 'B0189', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }], 7: [{ 'Code': 'B0327', 'Len': 45, 'Count': 1 }, { 'Code': 'B0326', 'Len': 45, 'Count': 1 }, { 'Code': 'B0191', 'Count': 1 }, { 'Code': 'C0068', 'Count': 2 }], 8: [{ 'Code': 'B0327', 'Len': 30, 'Count': 2 }, { 'Code': 'B0069', 'Len': 60, 'Count': 1 }, { 'Code': 'B0189', 'Count': 2 }, { 'Code': 'C0068', 'Count': 2 }], 9: [{ 'Code': 'B0326', 'Len': 30, 'Count': 2 }, { 'Code': 'B0043', 'Len': 60, 'Count': 1 }, { 'Code': 'B0190', 'Count': 2 }, { 'Code': 'C0068', 'Count': 2 }], 10: [{ 'Code': 'B0326', 'Len': 30, 'Count': 1 }, { 'Code': 'B0043', 'Len': 60, 'Count': 1 }, { 'Code': 'B0328', 'Len': 30, 'Count': 1 }, { 'Code': 'B0190', 'Count': 1 }, { 'Code': 'B0187', 'Count': 1 }, { 'Code': 'C0068', 'Count': 2 }], 11: [{ 'Code': 'B0325', 'Len': 30, 'Count': 2 }, { 'Code': 'B0044', 'Len': 60, 'Count': 1 }, { 'Code': 'B0310', 'Count': 2 }, { 'Code': 'C0067', 'Count': 2 }], 12: [{ 'Code': 'B0325', 'Len': 45, 'Count': 2 }, { 'Code': 'B0043', 'Len': 70, 'Count': 1 }, { 'Code': 'B0308', 'Count': 2 }, { 'Code': 'C0067', 'Count': 2 }], 13: [{ 'Code': 'B0327', 'Len': 45, 'Count': 1 }, { 'Code': 'B0009', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }], 132: [{ 'Code': 'B0327', 'Len': 45, 'Count': 1 }, { 'Code': 'B0013', 'Count': 1 }, { 'Code': 'B0189', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }], 14: [{ 'Code': 'B0326', 'Len': 45, 'Count': 1 }, { 'Code': 'B0008', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }], 142: [{ 'Code': 'B0326', 'Len': 45, 'Count': 1 }, { 'Code': 'B0013', 'Count': 1 }, { 'Code': 'B0188', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }], 15: [{ 'Code': 'B0327', 'Len': 60, 'Count': 3 }, { 'Code': 'B0073', 'Count': 1 }, { 'Code': 'C0068', 'Count': 3 }], 16: [{ 'Code': 'B0326', 'Len': 60, 'Count': 3 }, { 'Code': 'B0072', 'Count': 1 }, { 'Code': 'C0068', 'Count': 3 }], 17: [{ 'Code': 'B0325', 'Len': 60, 'Count': 3 }, { 'Code': 'B0309', 'Count': 1 }, { 'Code': 'C0067', 'Count': 3 }], 18: [{ 'Code': 'B0129', 'Len': 60, 'Count': 2 }, { 'Code': 'B0129', 'Len': 45, 'Count': 1 }, { 'Code': 'B0127', 'Count': 1 }, { 'Code': 'B0370', 'Count': 3 }], 19: [{ 'Code': 'B0129', 'Len': 80, 'Count': 1 }, { 'Code': 'B0370', 'Count': 2 }, { 'Code': 'C0001', 'Count': 1 }], 20: [{ 'Code': 'B0129', 'Len': 60, 'Count': 1 }, { 'Code': 'B0018', 'Count': 1 }, { 'Code': 'B0370', 'Count': 1 }], 21: [{ 'Code': 'B0069', 'Len': 200, 'Count': 1 }, { 'Code': 'B0369', 'Count': 1 }], 22: [{ 'Code': 'C0001', 'Count': 1 }], 23: [{ 'Code': 'B0327', 'Len': 45, 'Count': 1 }, { 'Code': 'B0369', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }], 24: [{ 'Code': 'B0327', 'Len': 60, 'Count': 1 }, { 'Code': 'B0369', 'Count': 1 }, { 'Code': 'C0001', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }], 25: [{ 'Code': 'B0327', 'Len': 30, 'Count': 1 }, { 'Code': 'B0043', 'Len': 30, 'Count': 1 }, { 'Code': 'B0325', 'Len': 30, 'Count': 1 }, { 'Code': 'B0307', 'Count': 1 }, { 'Code': 'B0308', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }, { 'Code': 'C0067', 'Count': 1 }], 26: [{ 'Code': 'B0129', 'Len': 80, 'Count': 1 }, { 'Code': 'B0370', 'Count': 2 }], 27: [{ 'Code': 'B0325', 'Len': 90, 'Count': 1 }, { 'Code': 'C0067', 'Count': 2 }], 28: [{ 'Code': 'B0326', 'Len': 90, 'Count': 1 }, { 'Code': 'C0068', 'Count': 2 }], 29: [{ 'Code': 'B0327', 'Len': 90, 'Count': 1 }, { 'Code': 'C0068', 'Count': 2 }], 30: [{ 'Code': 'B0326', 'Len': 30, 'Count': 1 }, { 'Code': 'B0069', 'Len': 30, 'Count': 1 }, { 'Code': 'B0191', 'Count': 1 }, { 'Code': 'C0068', 'Count': 1 }] };
+        const DEFAULT_STAGES = ["Production Medium", "Cell Boost 7a", "Cell Boost 7b", "Harvest"];
+        const DEFAULT_AUTOCLAVE_GROUP_B = ["SciPres pressure sensor", "Forceps", "3/4 Manual Valve", "3/4 Hose Water Piping", "1-1/2 Hose Water Piping", "1-1/2 Manual Valve", "Bottle holder", "Pump head cover", "WFI sampling tube", "Stainless scissor", "Stainless steel perforated lid", "Pump tubing 720", "Pump tubing 520", "Air vent filter + 60 cm 3/8-5/8 C-Flex + air vent filter", "C-Flex 100/TC", "C-Flex 50/TC", "1-1/2 inch Gasket (2/bag)", "3/4 inch Gasket (5/bag)", "3/4 inch TC cap (2/bag)", "Hose barb to tri-clamp adaptor (2/bag)", "Silicon 100/TC", "Silicon 50/TC", "Silicon 50/TC plus Ready Mate", "Cross adaptor tubing set", "Y adaptor tubing set", "1\" adaptor tubing set", "Cross adaptor", "Y adaptor", "Braided 20", "Funnel shape air sampler head", "Air sampler head", "50 cm 3/8 -5/8 C-Flex+ 50 cm 5/16 -1/2 pump grade tubing", "50 cm 5/16 -7/16 pump grade tubing", "DO Probe", "pH Probe", "Bowie & Dick test pack"];
+
+        // --- SAFE DATA: Pure JSON Array (No function calls) ---
+        const DEFAULT_AUTOCLAVE_PATTERNS_DATA = [{ id: 1, name: "Pattern 1 (MFG USP)", program: "P01", description: "Standard USP Production Load", zones: [{ name: "A1-1", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "3/8” C-Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"] }, { name: "A1-2", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set"] }, { name: "A1-3", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set"] }, { name: "A1-4", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set"] }, { name: "A2-1 & A2-2", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"] }, { name: "A2-3", capacity: 1, allowed: ["1/2” C-Flex-3/8” Pump Tubing Set"] }, { name: "A2-4", capacity: 1, allowed: ["1/2” C-Flex-3/8” Pump Tubing Set"] }, { name: "B1-1", capacity: 1, allowed: ["1/2”C- Flex-3/8” Silicone Tubing Set"] }, { name: "B1-2", capacity: 1, allowed: ["1/8”-1/8”-1/8” pump tubing set"] }, { name: "B1-3", capacity: 1, allowed: ["3/8”-1/4”-3/8” pump tubing set"] }, { name: "B1-4", capacity: 1, allowed: ["3/8”-1/4”-3/8” pump tubing set"] }, { name: "B2-1", capacity: 1, allowed: ["1/4” Pump Tubing Set"] }, { name: "B2-2", capacity: 1, allowed: ["1/4” Pump Tubing Set"] }, { name: "B2-3 & B2-4", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"] }] }, { id: 2, name: "Pattern 2 (MFG USP)", program: "P01", description: "USP Load with FoamAway & Tools", zones: [{ name: "A1-1", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "3/8” C-Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"] }, { name: "A1-2", capacity: 1, allowed: ["1/8”-1/4”-1/8” FoamAway pump tubing set"] }, { name: "A1-3", capacity: 1, allowed: ["1/8” Y tubing set"] }, { name: "A1-4", capacity: 1, allowed: ["1/2” C-Flex-3/8” Pump Tubing Set"] }, { name: "A2-1 & A2-2", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"] }, { name: "A2-3", capacity: 1, allowed: ["3/8”-1/4”-1/4” pump tubing set"] }, { name: "A2-4", capacity: 1, allowed: ["3/8”-1/4”-3/8” pump tubing set"] }, { name: "B1-1", capacity: 30, allowed: ["Forceps"] }, { name: "B1-2", capacity: 1, allowed: ["1/8”-1/8”-1/8” pump tubing set"] }, { name: "B1-3", capacity: 1, allowed: ["3/8” C-Flex-3/8”Silicone Tubing Set"] }, { name: "B1-4", capacity: 1, allowed: ["1/4” Pump Tubing Set"] }, { name: "B2-1 & B2-2", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"] }, { name: "B2-3", capacity: 3, allowed: ["3/4 Manual Valve"] }, { name: "B2-4", capacity: 3, allowed: ["3/4 Hose Water Piping"] }] }, { id: 3, name: "Pattern 3 (MFG USP)", program: "P01", description: "Harvest/Bioreactor Connectors", zones: [{ name: "A1-1 & A1-2", capacity: 1, allowed: ["1/2” Y tubing set", "3/8” Y tubing set", "1/8” Y tubing set"] }, { name: "A1-3 & A1-4", capacity: 2, allowed: ["1/2\" C-Flex 45 w/ ReadyMate", "3/8\" C-Flex 45 w/ ReadyMate"] }, { name: "A2-1", capacity: 1, allowed: ["Sampling Tubing Set"] }, { name: "A2-2", capacity: 1, allowed: ["SciPres pressure sensor"] }, { name: "A2-3 & A2-4", capacity: 2, allowed: ["1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set", "60 cm 1/2\" Sterile Tubing Set with Scilog"] }, { name: "B1-1 & B1-2", capacity: 2, allowed: ["1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set", "60 cm 1/2\" Sterile Tubing Set with Scilog"] }, { name: "B1-3 & B1-4", capacity: 2, allowed: ["1” Braided Silicone Tubing connect Pumpskid and Scilog", "Exhaust Tubing Set"] }, { name: "B2 (All)", capacity: 4, allowed: ["Connected T-tubing Set", "1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"] }] }, { id: 4, name: "Pattern 4 (MFG USP)", program: "P01", description: "Bulk Tubing Sets", zones: [{ name: "A1-1 & A1-2", capacity: 1, allowed: ["1/2” Y tubing set", "3/8” Y tubing set", "1/8” Y tubing set"] }, { name: "A1-3 & A1-4", capacity: 2, allowed: ["1/2\" C-Flex 45 w/ ReadyMate", "3/8\" C-Flex 45 w/ ReadyMate"] }, { name: "A2-1", capacity: 1, allowed: ["Sampling Tubing Set"] }, { name: "A2-2", capacity: 1, allowed: ["SciPres pressure sensor"] }, { name: "A2-3 & A2-4", capacity: 2, allowed: ["1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set", "60 cm 1/2\" Sterile Tubing Set with Scilog"] }, { name: "B1 (All)", capacity: 4, allowed: ["Connected T-tubing Set", "1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"] }, { name: "B2 (All)", capacity: 4, allowed: ["Connected T-tubing Set", "1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"] }] }, { id: 5, name: "Pattern 5 (MFG USP)", program: "P01", description: "High Capacity Pump Tubing", zones: [{ name: "A1 (All)", capacity: 4, allowed: ["1/8”-1/8”-1/8” pump tubing set", "3/8”-1/4”-3/8” pump tubing set", "3/8”-1/4”-1/4” pump tubing set", "1/2”-1/2”-1/2” pump tubing set", "1/8”-1/4”-1/8” FoamAway pump tubing set", "Sampling Tubing Set", "1/2” C-Flex Tubing Set", "3/8” C-Flex Tubing Set", "1/8” C-Flex Tubing Set"] }, { name: "A2 (All)", capacity: 4, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"] }, { name: "B1 (All)", capacity: 4, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"] }, { name: "B2 (All)", capacity: 4, allowed: ["1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"] }] }, { id: 6, name: "Pattern 6 (Down Streaming)", program: "P01", description: "Downstream Components 1", zones: [{ name: "A1-1 & A1-2", capacity: 4, allowed: ["Pump tubing 720"] }, { name: "A1-3 & A1-4", capacity: 4, allowed: ["Air vent filter + 60 cm 3/8-5/8 C-Flex + air vent filter"] }, { name: "A2-1 & A2-2", capacity: 4, allowed: ["C-Flex 100/TC", "C-Flex 50/TC"] }, { name: "A2-3", capacity: 12, allowed: ["1-1/2 inch Gasket (2/bag)", "3/4 inch Gasket (5/bag)"] }, { name: "A2-4", capacity: 4, allowed: ["SciPres pressure sensor"] }, { name: "B1-1", capacity: 10, allowed: ["3/4 inch TC cap (2/bag)"] }, { name: "B1-2", capacity: 5, allowed: ["Hose barb to tri-clamp adaptor (2/bag)"] }, { name: "B1-3 & B1-4", capacity: 6, allowed: ["Silicon 100/TC", "Silicon 50/TC", "Silicon 50/TC plus Ready Mate", "Cross adaptor tubing set", "Y adaptor tubing set"], rules: [{ items: ["Silicon 100/TC", "Silicon 50/TC", "Silicon 50/TC plus Ready Mate"], max: 4 }, { items: ["Cross adaptor tubing set", "Y adaptor tubing set"], max: 2 }] }, { name: "B2 (All)", capacity: 8, allowed: ["Silicon 50/TC", "Silicon 50/TC plus Ready Mate", "1\" adaptor tubing set"] }] }, { id: 7, name: "Pattern 7 (Final Filtration & QC)", program: "P01", description: "QC Utensils & Filtration", zones: [{ name: "A1-1 & A1-2", capacity: 2, allowed: ["Cross adaptor", "Y adaptor"] }, { name: "A1-3", capacity: 2, allowed: ["Braided 20"] }, { name: "A1-4", capacity: 4, allowed: ["Pump tubing 520", "Pump tubing 720"] }, { name: "A2-1 & A2-2", capacity: 6, allowed: ["3/4 Hose Water Piping"] }, { name: "A2-3", capacity: 2, allowed: ["1-1/2 Hose Water Piping"] }, { name: "A2-4", capacity: 6, allowed: ["3/4 Manual Valve", "1-1/2 Manual Valve"] }, { name: "B1-1 & B1-2", capacity: 80, allowed: ["Forceps"] }, { name: "B1-3", capacity: 5, allowed: ["Funnel shape air sampler head", "Stainless scissor", "Stainless steel perforated lid"], rules: [{ items: ["Stainless scissor"], max: 2 }, { items: ["Stainless steel perforated lid"], max: 1 }, { items: ["Funnel shape air sampler head", "Stainless steel perforated lid"], max: 3 }] }, { name: "B1-4", capacity: 4, allowed: ["Air sampler head"] }, { name: "B2-1 & B2-2", capacity: 2, allowed: ["50 cm 3/8 -5/8 C-Flex+ 50 cm 5/16 -1/2 pump grade tubing", "50 cm 5/16 -7/16 pump grade tubing"] }, { name: "B2-3", capacity: 1, allowed: ["Bottle holder"] }, { name: "B2-4", capacity: 1, allowed: ["Pump head cover", "WFI sampling tube"] }] }, { id: 8, name: "Pattern 8 (Down Streaming)", program: "P01", description: "Downstream Components 2", zones: [{ name: "A1 (All)", capacity: 8, allowed: ["Silicon 50/TC", "Silicon 50/TC plus Ready Mate"] }, { name: "A2 (All)", capacity: 8, allowed: ["Silicon 50/TC", "Silicon 50/TC plus Ready Mate"] }, { name: "B1-1 & B1-2", capacity: 4, allowed: ["Air vent filter + 60 cm 3/8-5/8 C-Flex + air vent filter", "1\" adaptor tubing set"] }, { name: "B1-3", capacity: 4, allowed: ["Pump tubing 520", "Pump tubing 720", "SciPres pressure sensor", "Braided 20"] }, { name: "B1-4", capacity: 1, allowed: ["50 cm 3/8 -5/8 C-Flex+ 50 cm 5/16 -1/2 pump grade tubing", "3/4 inch TC cap (2/bag)", "Hose barb to tri-clamp adaptor (2/bag)", "1-1/2 inch Gasket (2/bag)", "3/4 inch Gasket (5/bag)"] }, { name: "B2 (All)", capacity: 4, allowed: ["Cross adaptor tubing set", "Y adaptor tubing set"] }] }, { id: 9, name: "Pattern 9 (Probes)", program: "P04", description: "Probe Sterilization", zones: [{ name: "A2-3", capacity: 2, allowed: ["DO Probe"] }, { name: "A2-4", capacity: 2, allowed: ["pH Probe"] }] }, { id: 10, name: "Pattern 10 (Bowie & Dick)", program: "P09", description: "Daily Air Removal Test", zones: [{ name: "B1-1 & B1-2", capacity: 1, allowed: ["Bowie & Dick test pack"] }] }];
+
+        // --- HELPER FUNCTIONS ---
+        function generateAssemblyGuideHTML(stageList, tasks, customBomMap, componentsDb, diagramsDb) { let htmlParts = ['<div class="report-container"><h1>Biopharma Assembly Guide (裝配工單)</h1>']; stageList.forEach(stage => { const stageTasks = tasks.filter(t => t.Stage === stage && !t.Is_Stock); if (stageTasks.length === 0) return; htmlParts.push(`<div class="stage-header">📍 製程階段: ${stage}</div>`); htmlParts.push('<table class="custom-table"><thead><tr><th style="width:35%;">Assembly Item / Diagram (管組示意圖)</th><th style="width:8%;">Set Qty<br>(套數)</th><th style="width:25%;">Material Detail (物料明細)</th><th style="width:12%;">Length/Seg<br>(單段長度)</th><th style="width:8%;">Seg/Set<br>(段/套)</th><th style="width:12%;">Total Qty<br>(本站總需)</th></tr></thead><tbody>'); stageTasks.forEach(t => { const sopId = parseInt(t['SOP No.']); const qtySets = t['Qty']; const jsonBom = customBomMap[sopId] || []; const safeDiagram = (diagramsDb[sopId] || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); const rowSpan = jsonBom.length > 0 ? jsonBom.length : 1; let isFirstRow = true; jsonBom.forEach(part => { const pCode = part['Code']; const matInfo = componentsDb[pCode] || { 'Name': 'Unknown' }; const isTubing = part.hasOwnProperty('Len') && part['Len'] > 0; const lenPerSeg = isTubing ? `${part['Len']} cm` : "-"; const segPerSet = part['Count'] || 1; const totalSegs = segPerSet * qtySets; const totalLen = isTubing ? (part['Len'] || 0) * totalSegs : 0; let totalDisp = isTubing ? (totalSegs > 1 ? `<b>${totalLen} cm</b><br><span class='total-detail'>(${totalSegs} x ${part['Len']} cm)</span>` : `<b>${totalLen} cm</b>`) : `${totalSegs} ea`; htmlParts.push('<tr>'); if (isFirstRow) { htmlParts.push(`<td rowspan="${rowSpan}" class="text-center"><b>No. ${sopId}</b><br><span style="font-size:0.9em;">${t["Name"]}</span><br><div class="diagram-code">${safeDiagram}</div></td><td rowspan="${rowSpan}" class="text-center" style="font-size:1.1em; font-weight:bold;">${qtySets}</td>`); } htmlParts.push(`<td><b>${pCode}</b><br><span style="color:#555; font-size:0.9em;">${matInfo["Name"]}</span></td><td class="text-blue">${lenPerSeg}</td><td class="text-center">${segPerSet}</td><td class="bg-light">${totalDisp}</td></tr>`); isFirstRow = false; }); }); htmlParts.push('</tbody></table>'); }); htmlParts.push('</div>'); return htmlParts.join(""); }
+        function generatePickingListHTML(tasks, customBomMap, componentsDb, catalogDb) { const rawMaterialTotals = {}; const stockSetTotals = {}; const isCodeTubing = {}; tasks.forEach(t => { if (t.Is_Stock) { const stockCode = t.Material_Code; if (stockCode) stockSetTotals[stockCode] = (stockSetTotals[stockCode] || 0) + t.Qty; } else { const sopId = parseInt(t['SOP No.']); const bom = customBomMap[sopId] || []; bom.forEach(part => { const pCode = part.Code; const isTubing = part.hasOwnProperty('Len') && part.Len > 0; isCodeTubing[pCode] = isTubing; const segCount = part.Count || 1; const totalNeeded = segCount * t.Qty; if (isTubing) rawMaterialTotals[pCode] = (rawMaterialTotals[pCode] || 0) + (part.Len * totalNeeded); else rawMaterialTotals[pCode] = (rawMaterialTotals[pCode] || 0) + totalNeeded; }); } }); let htmlParts = ['<div class="report-container"><h1>Total Material Picking List (總領料單)</h1>']; if (Object.keys(rawMaterialTotals).length > 0) { htmlParts.push('<div class="picking-title">A. Raw Materials (自製耗材總表)</div>'); htmlParts.push('<table class="custom-table"><thead><tr><th style="width:20%;">Material Code</th><th style="width:50%;">Material Name / Description</th><th style="width:30%;">Total Quantity Needed</th></tr></thead><tbody>'); Object.keys(rawMaterialTotals).sort().forEach(code => { const total = rawMaterialTotals[code]; const matInfo = componentsDb[code] || { 'Name': 'Unknown', 'Unit': '?' }; const unit = isCodeTubing[code] ? "cm" : "ea"; const qtyDisplay = unit === "cm" ? `<b>${total.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${unit}</b>` : `${total.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${unit}`; htmlParts.push(`<tr><td class="text-center"><b>${code}</b></td><td>${matInfo["Name"]}</td><td class="text-center" style="font-size:1.1em;">${qtyDisplay}</td></tr>`); }); htmlParts.push('</tbody></table>'); } else { htmlParts.push('<p style="padding:10px;">No raw materials required.</p>'); } if (Object.keys(stockSetTotals).length > 0) { htmlParts.push('<div class="picking-title" style="margin-top:30px;">B. Stock Sets (庫存套件領取表)</div>'); htmlParts.push('<table class="custom-table"><thead><tr><th style="width:20%;">Stock Code</th><th style="width:50%;">Set Name</th><th style="width:30%;">Total Sets to Pick</th></tr></thead><tbody>'); const stockNameMap = {}; Object.values(catalogDb).forEach(v => { if (v.Stock_Code) stockNameMap[v.Stock_Code] = v.Name; }); Object.keys(stockSetTotals).sort().forEach(code => { const count = stockSetTotals[code]; const name = stockNameMap[code] || "Unknown Stock Set"; htmlParts.push(`<tr><td class="text-center"><b>${code}</b></td><td>${name}</td><td class="text-center" style="font-size:1.1em;"><b>${count} ea</b></td></tr>`); }); htmlParts.push('</tbody></table>'); } htmlParts.push('</div>'); return htmlParts.join(""); }
+        function downloadHtml(content, filename) { const fullHtml = `<html><head>${CSS_STRING}</head><body>${content}</body></html>`; const blob = new Blob([fullHtml], { type: 'text/html' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+        function downloadJson(data, filename) { const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+
+        // --- COMPONENT EDITOR ---
+        const ComponentEditor = ({ dbComponents, setDbComponents, dbBom }) => {
+            const [localComps, setLocalComps] = useState(dbComponents);
+            const [editCode, setEditCode] = useState("");
+            const [editName, setEditName] = useState("");
+            const [editUnit, setEditUnit] = useState("");
+            const [errorMsg, setErrorMsg] = useState("");
+            useEffect(() => { setLocalComps(dbComponents); }, [dbComponents]);
+            const handleDelete = (code) => {
+                let used = false;
+                Object.values(dbBom).forEach(bomList => { bomList.forEach(part => { if (part.Code === code) used = true; }) });
+                if (used) { setErrorMsg(`⛔ Action Blocked: ${code} is used in BOM.`); setTimeout(() => setErrorMsg(""), 5000); return; }
+                const newC = { ...localComps }; delete newC[code]; setLocalComps(newC);
             };
-            solve(cleanInventory, []);
-        }
-        const finalSchedule = bestSchedule.map((c, i) => ({ ...c, cycleNumber: i + 1 }));
-        return { schedule: finalSchedule, unassignable };
-    };
-
-    // --- ICONS ---
-    const Icon = ({ path, className }) => (
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{path}</svg>
-    );
-    const Icons = {
-        Plus: (props) => <Icon {...props} path={<><path d="M5 12h14"/><path d="M12 5v14"/></>} />,
-        Trash2: (props) => <Icon {...props} path={<><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></>} />,
-        Package: (props) => <Icon {...props} path={<><path d="m16.5 9.4-9-5.19"/><path d="m21 16-9 5.19-9-5.19"/><path d="m12 12v8.5"/><path d="M12 12 3 6.81 12 1.6l9 5.21Z"/><path d="M12 12 21 6.81"/><path d="m16.5 9.4 4.5-2.6"/><path d="m3.27 6.96 4.5 2.6"/></>} />,
-        Info: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></>} />,
-        AlertCircle: (props) => <Icon {...props} path={<><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></>} />,
-        RefreshCw: (props) => <Icon {...props} path={<><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></>} />,
-        Settings: (props) => <Icon {...props} path={<><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></>} />,
-        Save: (props) => <Icon {...props} path={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>} />,
-        RotateCcw: (props) => <Icon {...props} path={<><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></>} />,
-        ArrowRight: (props) => <Icon {...props} path={<><line x1="5" x2="19" y1="12" y2="12"/><polyline points="12 5 19 12 12 19"/></>} />,
-        Edit2: (props) => <Icon {...props} path={<><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></>} />,
-        ChevronDown: (props) => <Icon {...props} path={<><polyline points="6 9 12 15 18 9"/></>} />,
-        ChevronUp: (props) => <Icon {...props} path={<><polyline points="18 15 12 9 6 15"/></>} />,
-        X: (props) => <Icon {...props} path={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />,
-        ShieldAlert: (props) => <Icon {...props} path={<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>} />,
-    };
-
-    // --- DATA (RAW JSON ARRAYS) ---
-    const DEFAULT_COMPONENTS = {'B0327': {'Name': '1/2"x3/4" C-Flex 374 tubing (A)', 'Unit': 'cm'}, 'B0326': {'Name': '3/8"x5/8" C-Flex 374 tubing (B)', 'Unit': 'cm'}, 'B0328': {'Name': '1/4"x7/16" C-Flex 374 tubing (C)', 'Unit': 'cm'}, 'B0325': {'Name': '1/8"x1/4" C-Flex 374 tubing (D)', 'Unit': 'cm'}, 'B0129': {'Name': 'Braided Platinum Silicone Hose 1" (E)', 'Unit': 'cm'}, 'B0069': {'Name': 'Pump Grade Silicone Tubing 1/2"x3/4" (F)', 'Unit': 'cm'}, 'B0042': {'Name': 'Pump Grade Silicone Tubing 3/8"x5/8" (G)', 'Unit': 'cm'}, 'B0043': {'Name': 'Pump Grade Silicone Tubing 1/4"x7/16" (H)', 'Unit': 'cm'}, 'B0044': {'Name': 'Pump Grade Silicone Tubing 1/8"x1/4" (I)', 'Unit': 'cm'}, 'B0191': {'Name': 'Reducer 1/2 to 3/8 Hose Barbs', 'Unit': 'ea'}, 'B0307': {'Name': 'Reducer 1/2 to 1/4 Hose Barbs', 'Unit': 'ea'}, 'B0190': {'Name': 'Reducer 3/8 to 1/4 Hose Barbs', 'Unit': 'ea'}, 'B0308': {'Name': 'Reducer 1/4 to 1/8 Hose Barbs', 'Unit': 'ea'}, 'B0189': {'Name': 'Straight 1/2 Hose Barbs (N/X)', 'Unit': 'ea'}, 'B0188': {'Name': 'Straight 3/8 Hose Barbs (O/X)', 'Unit': 'ea'}, 'B0187': {'Name': 'Straight 1/4 Hose Barbs (P)', 'Unit': 'ea'}, 'B0310': {'Name': 'Straight 1/8 Hose Barbs (Q)', 'Unit': 'ea'}, 'B0073': {'Name': '1/2" Y connector, PP (R)', 'Unit': 'ea'}, 'B0072': {'Name': '3/8" Y connector, PP (S)', 'Unit': 'ea'}, 'B0309': {'Name': 'Y connector, 1/8 ID Tubing (T)', 'Unit': 'ea'}, 'B0371': {'Name': 'Y Tube Fitting, 1/2" ID, PVDF', 'Unit': 'ea'}, 'B0127': {'Name': 'T connector 1.5"X1" (U)', 'Unit': 'ea'}, 'B0008': {'Name': 'ReadyMate DAC 375 - 3/8in connector (AA)', 'Unit': 'ea'}, 'B0009': {'Name': 'ReadyMate DAC 500 - 1/2in connector (Z)', 'Unit': 'ea'}, 'B0013': {'Name': 'ReadyMate DAC 750 Mini TC connector (Y)', 'Unit': 'ea'}, 'B0018': {'Name': 'Lynx ST connector-1 in. (AC)', 'Unit': 'ea'}, 'B0370': {'Name': 'Sanitary Fitting, Maxi Flange to 1" Barb (V)', 'Unit': 'ea'}, 'B0369': {'Name': 'Sanitary Fitting, Mini Flange to 1/2" Barb (W)', 'Unit': 'ea'}, 'C0068': {'Name': 'Midisart 2000 Air Filter (AD)', 'Unit': 'ea'}, 'C0067': {'Name': 'Midisart 2000 Air Filter 1/8"-3/8" (AE)', 'Unit': 'ea'}, 'C0001': {'Name': 'SciPres pressure sensor 1" TC (AB)', 'Unit': 'ea'}};
-    const DEFAULT_CATALOG = {1: {'Name': '3/8” C-Flex-1/4” Silicone Tubing Set', 'Stock_Code': null}, 2: {'Name': '1/4” Pump Tubing Set', 'Stock_Code': null}, 3: {'Name': '3/8” C-Flex-3/8”Silicone Tubing Set', 'Stock_Code': null}, 4: {'Name': '1/2” C-Flex-3/8” Pump Tubing Set', 'Stock_Code': null}, 5: {'Name': '1/2”C- Flex-3/8” Silicone Tubing Set', 'Stock_Code': null}, 6: {'Name': '1/2”C- Flex-1/2” Silicone Tubing Set', 'Stock_Code': null}, 7: {'Name': '1/2” to 3/8” C-Flex tubing set', 'Stock_Code': 'B0315'}, 8: {'Name': '1/2”-1/2”-1/2” pump tubing set', 'Stock_Code': null}, 9: {'Name': '3/8”-1/4”-3/8” pump tubing set', 'Stock_Code': 'B0312'}, 10: {'Name': '3/8”-1/4”-1/4” pump tubing set', 'Stock_Code': 'B0066'}, 11: {'Name': '1/8”-1/8”-1/8” pump tubing set', 'Stock_Code': 'B0313'}, 12: {'Name': '1/8”-1/4”-1/8” FoamAway pump tubing set', 'Stock_Code': null}, 13: {'Name': '1/2" C-Flex 45 w/ ReadyMate (Type Z)', 'Stock_Code': null}, 132: {'Name': '1/2" C-Flex 45 w/ ReadyMate (Type Y)', 'Stock_Code': null}, 14: {'Name': '3/8" C-Flex 45 w/ ReadyMate (Type AA)', 'Stock_Code': null}, 142: {'Name': '3/8" C-Flex 45 w/ ReadyMate (Type Y)', 'Stock_Code': null}, 15: {'Name': '1/2” Y tubing set', 'Stock_Code': 'B0316'}, 16: {'Name': '3/8” Y tubing set', 'Stock_Code': null}, 17: {'Name': '1/8” Y tubing set', 'Stock_Code': 'B0314'}, 18: {'Name': 'Connected T-tubing Set', 'Stock_Code': 'B0420 / B0423'}, 19: {'Name': '1” Braided Silicone Tubing connect Pumpskid and Scilog', 'Stock_Code': null}, 20: {'Name': 'Exhaust Tubing Set', 'Stock_Code': null}, 21: {'Name': 'Pump Tubing Set 620', 'Stock_Code': null}, 22: {'Name': 'SciPres pressure sensor', 'Stock_Code': null}, 23: {'Name': '45 cm 1/2” Sterile Tubing Set', 'Stock_Code': null}, 24: {'Name': '60 cm 1/2” Sterile Tubing Set with Scilog', 'Stock_Code': null}, 25: {'Name': 'Sampling Tubing Set', 'Stock_Code': 'B0422'}, 26: {'Name': '1” Braided Silicone Tubing Set', 'Stock_Code': 'B0421'}, 27: {'Name': '1/8” C-Flex Tubing Set', 'Stock_Code': null}, 28: {'Name': '3/8” C-Flex Tubing Set', 'Stock_Code': null}, 29: {'Name': '1/2” C-Flex Tubing Set', 'Stock_Code': null}, 30: {'Name': '3/8” C-Flex-1/2” Silicone Tubing Set', 'Stock_Code': null}};
-    const DEFAULT_DIAGRAMS = {1: "AD [ (B) 30cm ] - L - [ (H) 30cm ] Empty", 2: "Empty [ (H) 100cm ] Empty", 3: "AD [ (B) 30cm ] - O - [ (G) 30cm ] Empty", 4: "AD [ (A) 30cm ] - J - [ (G) 100cm ] Empty", 5: "AD [ (A) 30cm ] - J - [ (G) 30cm ] Empty", 6: "AD [ (A) 30cm ] - N - [ (F) 30cm ] Empty", 7: "AD [ (A) 45cm ] - J - [ (B) 45cm ] AD", 8: "AD [ (A) 30cm ] - N - [ (F) 60cm ] - N - [ (A) 30cm ] AD", 9: "AD [ (B) 30cm ] - L - [ (H) 60cm ] - L - [ (B) 30cm ] AD", 10: "AD [ (B) 30cm ] - L - [ (H) 60cm ] - P - [ (C) 30cm ] AD", 11: "AE [ (D) 30cm ] - Q - [ (I) 60cm ] - Q - [ (D) 30cm ] AE", 12: "AE [ (D) 45cm ] - M - [ (H) 70cm ] - M - [ (D) 45cm ] AE", 13: "Z(RM 1/2) [ (A) 45cm ] AD", 132: "Y(Mini TC) - X(SS) - [ (A) 45cm ] - AD", 14: "AA(RM 3/8) [ (B) 45cm ] AD", 142: "Y(Mini TC) - X(SS) - [ (B) 45cm ] - AD", 15: "AD -- (A 60cm) -- R -- (A 60cm) -- AD\n                   |\n              (A 60cm) -- AD", 16: "AD -- (B 60cm) -- S -- (B 60cm) -- AD\n                   |\n              (B 60cm) -- AD", 17: "AE -- (D 60cm) -- T -- (D 60cm) -- AE\n                   |\n              (D 60cm) -- AE", 18: "             V\n             |\n          (E 45cm)\n             |\n V -- (E 60cm) -- U -- (E 60cm) -- V", 19: "AB [ SciPres ] -- V -- (E 80cm) -- V", 20: "AC [ Lynx ] --- (E 60cm) --- V", 21: "Empty [ (F) 200cm ] W (Mini TC)", 22: "[ SciPres Sensor ] (AB/C0001)", 23: "W <--- (A 45cm) ---> AD", 24: "AB [ SciPres ] - W <--- (A 60cm) ---> AD", 25: "AD [(A) 30cm] - K - [(H) 30cm] - M - [(D) 30cm] AE", 26: "V <--- (E 80cm) ---> V", 27: "AE [ (D) 90cm ] AE", 28: "AD [ (B) 90cm ] AD", 29: "AD [ (A) 90cm ] AD", 30: "AD [ (B) 30cm ] - J - [ (F) 30cm ] Empty"};
-    const DEFAULT_BOM = {1: [{'Code': 'B0326', 'Len': 30, 'Count': 1}, {'Code': 'B0043', 'Len': 30, 'Count': 1}, {'Code': 'B0190', 'Count': 1}, {'Code': 'C0068', 'Count': 1}], 2: [{'Code': 'B0043', 'Len': 100, 'Count': 1}], 3: [{'Code': 'B0326', 'Len': 30, 'Count': 1}, {'Code': 'B0042', 'Len': 30, 'Count': 1}, {'Code': 'B0188', 'Count': 1}, {'Code': 'C0068', 'Count': 1}], 4: [{'Code': 'B0327', 'Len': 30, 'Count': 1}, {'Code': 'B0042', 'Len': 100, 'Count': 1}, {'Code': 'B0191', 'Count': 1}, {'Code': 'C0068', 'Count': 1}], 5: [{'Code': 'B0327', 'Len': 30, 'Count': 1}, {'Code': 'B0042', 'Len': 30, 'Count': 1}, {'Code': 'B0191', 'Count': 1}, {'Code': 'C0068', 'Count': 1}], 6: [{'Code': 'B0327', 'Len': 30, 'Count': 1}, {'Code': 'B0069', 'Len': 30, 'Count': 1}, {'Code': 'B0189', 'Count': 1}, {'Code': 'C0068', 'Count': 1}], 7: [{'Code': 'B0327', 'Len': 45, 'Count': 1}, {'Code': 'B0326', 'Len': 45, 'Count': 1}, {'Code': 'B0191', 'Count': 1}, {'Code': 'C0068', 'Count': 2}], 8: [{'Code': 'B0327', 'Len': 30, 'Count': 2}, {'Code': 'B0069', 'Len': 60, 'Count': 1}, {'Code': 'B0189', 'Count': 2}, {'Code': 'C0068', 'Count': 2}], 9: [{'Code': 'B0326', 'Len': 30, 'Count': 2}, {'Code': 'B0043', 'Len': 60, 'Count': 1}, {'Code': 'B0190', 'Count': 2}, {'Code': 'C0068', 'Count': 2}], 10: [{'Code': 'B0326', 'Len': 30, 'Count': 1}, {'Code': 'B0043', 'Len': 60, 'Count': 1}, {'Code': 'B0328', 'Len': 30, 'Count': 1}, {'Code': 'B0190', 'Count': 1}, {'Code': 'B0187', 'Count': 1}, {'Code': 'C0068', 'Count': 2}], 11: [{'Code': 'B0325', 'Len': 30, 'Count': 2}, {'Code': 'B0044', 'Len': 60, 'Count': 1}, {'Code': 'B0310', 'Count': 2}, {'Code': 'C0067', 'Count': 2}], 12: [{'Code': 'B0325', 'Len': 45, 'Count': 2}, {'Code': 'B0043', 'Len': 70, 'Count': 1}, {'Code': 'B0308', 'Count': 2}, {'Code': 'C0067', 'Count': 2}], 13: [{'Code': 'B0327', 'Len': 45, 'Count': 1}, {'Code': 'B0009', 'Count': 1}, {'Code': 'C0068', 'Count': 1}], 132: [{'Code': 'B0327', 'Len': 45, 'Count': 1}, {'Code': 'B0013', 'Count': 1}, {'Code': 'B0189', 'Count': 1}, {'Code': 'C0068', 'Count': 1}], 14: [{'Code': 'B0326', 'Len': 45, 'Count': 1}, {'Code': 'B0008', 'Count': 1}, {'Code': 'C0068', 'Count': 1}], 142: [{'Code': 'B0326', 'Len': 45, 'Count': 1}, {'Code': 'B0013', 'Count': 1}, {'Code': 'B0188', 'Count': 1}, {'Code': 'C0068', 'Count': 1}], 15: [{'Code': 'B0327', 'Len': 60, 'Count': 3}, {'Code': 'B0073', 'Count': 1}, {'Code': 'C0068', 'Count': 3}], 16: [{'Code': 'B0326', 'Len': 60, 'Count': 3}, {'Code': 'B0072', 'Count': 1}, {'Code': 'C0068', 'Count': 3}], 17: [{'Code': 'B0325', 'Len': 60, 'Count': 3}, {'Code': 'B0309', 'Count': 1}, {'Code': 'C0067', 'Count': 3}], 18: [{'Code': 'B0129', 'Len': 60, 'Count': 2}, {'Code': 'B0129', 'Len': 45, 'Count': 1}, {'Code': 'B0127', 'Count': 1}, {'Code': 'B0370', 'Count': 3}], 19: [{'Code': 'B0129', 'Len': 80, 'Count': 1}, {'Code': 'B0370', 'Count': 2}, {'Code': 'C0001', 'Count': 1}], 20: [{'Code': 'B0129', 'Len': 60, 'Count': 1}, {'Code': 'B0018', 'Count': 1}, {'Code': 'B0370', 'Count': 1}], 21: [{'Code': 'B0069', 'Len': 200, 'Count': 1}, {'Code': 'B0369', 'Count': 1}], 22: [{'Code': 'C0001', 'Count': 1}], 23: [{'Code': 'B0327', 'Len': 45, 'Count': 1}, {'Code': 'B0369', 'Count': 1}, {'Code': 'C0068', 'Count': 1}], 24: [{'Code': 'B0327', 'Len': 60, 'Count': 1}, {'Code': 'B0369', 'Count': 1}, {'Code': 'C0001', 'Count': 1}, {'Code': 'C0068', 'Count': 1}], 25: [{'Code': 'B0327', 'Len': 30, 'Count': 1}, {'Code': 'B0043', 'Len': 30, 'Count': 1}, {'Code': 'B0325', 'Len': 30, 'Count': 1}, {'Code': 'B0307', 'Count': 1}, {'Code': 'B0308', 'Count': 1}, {'Code': 'C0068', 'Count': 1}, {'Code': 'C0067', 'Count': 1}], 26: [{'Code': 'B0129', 'Len': 80, 'Count': 1}, {'Code': 'B0370', 'Count': 2}], 27: [{'Code': 'B0325', 'Len': 90, 'Count': 1}, {'Code': 'C0067', 'Count': 2}], 28: [{'Code': 'B0326', 'Len': 90, 'Count': 1}, {'Code': 'C0068', 'Count': 2}], 29: [{'Code': 'B0327', 'Len': 90, 'Count': 1}, {'Code': 'C0068', 'Count': 2}], 30: [{'Code': 'B0326', 'Len': 30, 'Count': 1}, {'Code': 'B0069', 'Len': 30, 'Count': 1}, {'Code': 'B0191', 'Count': 1}, {'Code': 'C0068', 'Count': 1}]};
-    const DEFAULT_STAGES = ["Production Medium", "Cell Boost 7a", "Cell Boost 7b", "Harvest"];
-    const DEFAULT_AUTOCLAVE_GROUP_B = ["SciPres pressure sensor", "Forceps", "3/4 Manual Valve", "3/4 Hose Water Piping", "1-1/2 Hose Water Piping", "1-1/2 Manual Valve", "Bottle holder", "Pump head cover", "WFI sampling tube", "Stainless scissor", "Stainless steel perforated lid", "Pump tubing 720", "Pump tubing 520", "Air vent filter + 60 cm 3/8-5/8 C-Flex + air vent filter", "C-Flex 100/TC", "C-Flex 50/TC", "1-1/2 inch Gasket (2/bag)", "3/4 inch Gasket (5/bag)", "3/4 inch TC cap (2/bag)", "Hose barb to tri-clamp adaptor (2/bag)", "Silicon 100/TC", "Silicon 50/TC", "Silicon 50/TC plus Ready Mate", "Cross adaptor tubing set", "Y adaptor tubing set", "1\" adaptor tubing set", "Cross adaptor", "Y adaptor", "Braided 20", "Funnel shape air sampler head", "Air sampler head", "50 cm 3/8 -5/8 C-Flex+ 50 cm 5/16 -1/2 pump grade tubing", "50 cm 5/16 -7/16 pump grade tubing", "DO Probe", "pH Probe", "Bowie & Dick test pack"];
-    
-    // --- SAFE DATA: Pure JSON Array (No function calls) ---
-    const DEFAULT_AUTOCLAVE_PATTERNS_DATA = [{id: 1, name: "Pattern 1 (MFG USP)", program: "P01", description: "Standard USP Production Load", zones: [{name: "A1-1", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "3/8” C-Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"]}, {name: "A1-2", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set"]}, {name: "A1-3", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set"]}, {name: "A1-4", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set"]}, {name: "A2-1 & A2-2", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"]}, {name: "A2-3", capacity: 1, allowed: ["1/2” C-Flex-3/8” Pump Tubing Set"]}, {name: "A2-4", capacity: 1, allowed: ["1/2” C-Flex-3/8” Pump Tubing Set"]}, {name: "B1-1", capacity: 1, allowed: ["1/2”C- Flex-3/8” Silicone Tubing Set"]}, {name: "B1-2", capacity: 1, allowed: ["1/8”-1/8”-1/8” pump tubing set"]}, {name: "B1-3", capacity: 1, allowed: ["3/8”-1/4”-3/8” pump tubing set"]}, {name: "B1-4", capacity: 1, allowed: ["3/8”-1/4”-3/8” pump tubing set"]}, {name: "B2-1", capacity: 1, allowed: ["1/4” Pump Tubing Set"]}, {name: "B2-2", capacity: 1, allowed: ["1/4” Pump Tubing Set"]}, {name: "B2-3 & B2-4", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"]}]}, {id: 2, name: "Pattern 2 (MFG USP)", program: "P01", description: "USP Load with FoamAway & Tools", zones: [{name: "A1-1", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "3/8” C-Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"]}, {name: "A1-2", capacity: 1, allowed: ["1/8”-1/4”-1/8” FoamAway pump tubing set"]}, {name: "A1-3", capacity: 1, allowed: ["1/8” Y tubing set"]}, {name: "A1-4", capacity: 1, allowed: ["1/2” C-Flex-3/8” Pump Tubing Set"]}, {name: "A2-1 & A2-2", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"]}, {name: "A2-3", capacity: 1, allowed: ["3/8”-1/4”-1/4” pump tubing set"]}, {name: "A2-4", capacity: 1, allowed: ["3/8”-1/4”-3/8” pump tubing set"]}, {name: "B1-1", capacity: 30, allowed: ["Forceps"]}, {name: "B1-2", capacity: 1, allowed: ["1/8”-1/8”-1/8” pump tubing set"]}, {name: "B1-3", capacity: 1, allowed: ["3/8” C-Flex-3/8”Silicone Tubing Set"]}, {name: "B1-4", capacity: 1, allowed: ["1/4” Pump Tubing Set"]}, {name: "B2-1 & B2-2", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"]}, {name: "B2-3", capacity: 3, allowed: ["3/4 Manual Valve"]}, {name: "B2-4", capacity: 3, allowed: ["3/4 Hose Water Piping"]}]}, {id: 3, name: "Pattern 3 (MFG USP)", program: "P01", description: "Harvest/Bioreactor Connectors", zones: [{name: "A1-1 & A1-2", capacity: 1, allowed: ["1/2” Y tubing set", "3/8” Y tubing set", "1/8” Y tubing set"]}, {name: "A1-3 & A1-4", capacity: 2, allowed: ["1/2\" C-Flex 45 w/ ReadyMate", "3/8\" C-Flex 45 w/ ReadyMate"]}, {name: "A2-1", capacity: 1, allowed: ["Sampling Tubing Set"]}, {name: "A2-2", capacity: 1, allowed: ["SciPres pressure sensor"]}, {name: "A2-3 & A2-4", capacity: 2, allowed: ["1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set", "60 cm 1/2\" Sterile Tubing Set with Scilog"]}, {name: "B1-1 & B1-2", capacity: 2, allowed: ["1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set", "60 cm 1/2\" Sterile Tubing Set with Scilog"]}, {name: "B1-3 & B1-4", capacity: 2, allowed: ["1” Braided Silicone Tubing connect Pumpskid and Scilog", "Exhaust Tubing Set"]}, {name: "B2 (All)", capacity: 4, allowed: ["Connected T-tubing Set", "1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"]}]}, {id: 4, name: "Pattern 4 (MFG USP)", program: "P01", description: "Bulk Tubing Sets", zones: [{name: "A1-1 & A1-2", capacity: 1, allowed: ["1/2” Y tubing set", "3/8” Y tubing set", "1/8” Y tubing set"]}, {name: "A1-3 & A1-4", capacity: 2, allowed: ["1/2\" C-Flex 45 w/ ReadyMate", "3/8\" C-Flex 45 w/ ReadyMate"]}, {name: "A2-1", capacity: 1, allowed: ["Sampling Tubing Set"]}, {name: "A2-2", capacity: 1, allowed: ["SciPres pressure sensor"]}, {name: "A2-3 & A2-4", capacity: 2, allowed: ["1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set", "60 cm 1/2\" Sterile Tubing Set with Scilog"]}, {name: "B1 (All)", capacity: 4, allowed: ["Connected T-tubing Set", "1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"]}, {name: "B2 (All)", capacity: 4, allowed: ["Connected T-tubing Set", "1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"]}]}, {id: 5, name: "Pattern 5 (MFG USP)", program: "P01", description: "High Capacity Pump Tubing", zones: [{name: "A1 (All)", capacity: 4, allowed: ["1/8”-1/8”-1/8” pump tubing set", "3/8”-1/4”-3/8” pump tubing set", "3/8”-1/4”-1/4” pump tubing set", "1/2”-1/2”-1/2” pump tubing set", "1/8”-1/4”-1/8” FoamAway pump tubing set", "Sampling Tubing Set", "1/2” C-Flex Tubing Set", "3/8” C-Flex Tubing Set", "1/8” C-Flex Tubing Set"]}, {name: "A2 (All)", capacity: 4, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"]}, {name: "B1 (All)", capacity: 4, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"]}, {name: "B2 (All)", capacity: 4, allowed: ["1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"]}]}, {id: 6, name: "Pattern 6 (Down Streaming)", program: "P01", description: "Downstream Components 1", zones: [{name: "A1-1 & A1-2", capacity: 4, allowed: ["Pump tubing 720"]}, {name: "A1-3 & A1-4", capacity: 4, allowed: ["Air vent filter + 60 cm 3/8-5/8 C-Flex + air vent filter"]}, {name: "A2-1 & A2-2", capacity: 4, allowed: ["C-Flex 100/TC", "C-Flex 50/TC"]}, {name: "A2-3", capacity: 12, allowed: ["1-1/2 inch Gasket (2/bag)", "3/4 inch Gasket (5/bag)"]}, {name: "A2-4", capacity: 4, allowed: ["SciPres pressure sensor"]}, {name: "B1-1", capacity: 10, allowed: ["3/4 inch TC cap (2/bag)"]}, {name: "B1-2", capacity: 5, allowed: ["Hose barb to tri-clamp adaptor (2/bag)"]}, {name: "B1-3 & B1-4", capacity: 6, allowed: ["Silicon 100/TC", "Silicon 50/TC", "Silicon 50/TC plus Ready Mate", "Cross adaptor tubing set", "Y adaptor tubing set"], rules: [{items: ["Silicon 100/TC", "Silicon 50/TC", "Silicon 50/TC plus Ready Mate"], max: 4}, {items: ["Cross adaptor tubing set", "Y adaptor tubing set"], max: 2}]}, {name: "B2 (All)", capacity: 8, allowed: ["Silicon 50/TC", "Silicon 50/TC plus Ready Mate", "1\" adaptor tubing set"]}]}, {id: 7, name: "Pattern 7 (Final Filtration & QC)", program: "P01", description: "QC Utensils & Filtration", zones: [{name: "A1-1 & A1-2", capacity: 2, allowed: ["Cross adaptor", "Y adaptor"]}, {name: "A1-3", capacity: 2, allowed: ["Braided 20"]}, {name: "A1-4", capacity: 4, allowed: ["Pump tubing 520", "Pump tubing 720"]}, {name: "A2-1 & A2-2", capacity: 6, allowed: ["3/4 Hose Water Piping"]}, {name: "A2-3", capacity: 2, allowed: ["1-1/2 Hose Water Piping"]}, {name: "A2-4", capacity: 6, allowed: ["3/4 Manual Valve", "1-1/2 Manual Valve"]}, {name: "B1-1 & B1-2", capacity: 80, allowed: ["Forceps"]}, {name: "B1-3", capacity: 5, allowed: ["Funnel shape air sampler head", "Stainless scissor", "Stainless steel perforated lid"], rules: [{items: ["Stainless scissor"], max: 2}, {items: ["Stainless steel perforated lid"], max: 1}, {items: ["Funnel shape air sampler head", "Stainless steel perforated lid"], max: 3}]}, {name: "B1-4", capacity: 4, allowed: ["Air sampler head"]}, {name: "B2-1 & B2-2", capacity: 2, allowed: ["50 cm 3/8 -5/8 C-Flex+ 50 cm 5/16 -1/2 pump grade tubing", "50 cm 5/16 -7/16 pump grade tubing"]}, {name: "B2-3", capacity: 1, allowed: ["Bottle holder"]}, {name: "B2-4", capacity: 1, allowed: ["Pump head cover", "WFI sampling tube"]}]}, {id: 8, name: "Pattern 8 (Down Streaming)", program: "P01", description: "Downstream Components 2", zones: [{name: "A1 (All)", capacity: 8, allowed: ["Silicon 50/TC", "Silicon 50/TC plus Ready Mate"]}, {name: "A2 (All)", capacity: 8, allowed: ["Silicon 50/TC", "Silicon 50/TC plus Ready Mate"]}, {name: "B1-1 & B1-2", capacity: 4, allowed: ["Air vent filter + 60 cm 3/8-5/8 C-Flex + air vent filter", "1\" adaptor tubing set"]}, {name: "B1-3", capacity: 4, allowed: ["Pump tubing 520", "Pump tubing 720", "SciPres pressure sensor", "Braided 20"]}, {name: "B1-4", capacity: 1, allowed: ["50 cm 3/8 -5/8 C-Flex+ 50 cm 5/16 -1/2 pump grade tubing", "3/4 inch TC cap (2/bag)", "Hose barb to tri-clamp adaptor (2/bag)", "1-1/2 inch Gasket (2/bag)", "3/4 inch Gasket (5/bag)"]}, {name: "B2 (All)", capacity: 4, allowed: ["Cross adaptor tubing set", "Y adaptor tubing set"]}]}, {id: 9, name: "Pattern 9 (Probes)", program: "P04", description: "Probe Sterilization", zones: [{name: "A2-3", capacity: 2, allowed: ["DO Probe"]}, {name: "A2-4", capacity: 2, allowed: ["pH Probe"]}]}, {id: 10, name: "Pattern 10 (Bowie & Dick)", program: "P09", description: "Daily Air Removal Test", zones: [{name: "B1-1 & B1-2", capacity: 1, allowed: ["Bowie & Dick test pack"]}]}];
-
-    // --- HELPER FUNCTIONS ---
-    function generateAssemblyGuideHTML(stageList, tasks, customBomMap, componentsDb, diagramsDb) {let htmlParts = ['<div class="report-container"><h1>Biopharma Assembly Guide (裝配工單)</h1>'];stageList.forEach(stage => {const stageTasks = tasks.filter(t => t.Stage === stage && !t.Is_Stock);if (stageTasks.length === 0) return;htmlParts.push(`<div class="stage-header">📍 製程階段: ${stage}</div>`);htmlParts.push('<table class="custom-table"><thead><tr><th style="width:35%;">Assembly Item / Diagram (管組示意圖)</th><th style="width:8%;">Set Qty<br>(套數)</th><th style="width:25%;">Material Detail (物料明細)</th><th style="width:12%;">Length/Seg<br>(單段長度)</th><th style="width:8%;">Seg/Set<br>(段/套)</th><th style="width:12%;">Total Qty<br>(本站總需)</th></tr></thead><tbody>');stageTasks.forEach(t => {const sopId = parseInt(t['SOP No.']);const qtySets = t['Qty'];const bom = customBomMap[sopId] || [];const safeDiagram = (diagramsDb[sopId] || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");const rowSpan = bom.length > 0 ? bom.length : 1;let isFirstRow = true;bom.forEach(part => {const pCode = part['Code'];const matInfo = componentsDb[pCode] || {'Name': 'Unknown'};const isTubing = part.hasOwnProperty('Len') && part['Len'] > 0;const lenPerSeg = isTubing ? `${part['Len']} cm` : "-";const segPerSet = part['Count'] || 1;const totalSegs = segPerSet * qtySets;const totalLen = isTubing ? (part['Len'] || 0) * totalSegs : 0;let totalDisp = isTubing ? (totalSegs > 1 ? `<b>${totalLen} cm</b><br><span class='total-detail'>(${totalSegs} x ${part['Len']} cm)</span>` : `<b>${totalLen} cm</b>`) : `${totalSegs} ea`;htmlParts.push('<tr>');if (isFirstRow) {htmlParts.push(`<td rowspan="${rowSpan}" className="text-center"><b>No. ${sopId}</b><br><span style="font-size:0.9em;">${t["Name"]}</span><br><div className="diagram-code">${safeDiagram}</div></td><td rowspan="${rowSpan}" className="text-center" style="font-size:1.1em; font-weight:bold;">${qtySets}</td>`);}htmlParts.push(`<td><b>${pCode}</b><br><span style="color:#555; font-size:0.9em;">${matInfo["Name"]}</span></td><td className="text-blue">${lenPerSeg}</td><td className="text-center">${segPerSet}</td><td className="bg-light">${totalDisp}</td></tr>`);isFirstRow = false;});});htmlParts.push('</tbody></table>');});htmlParts.push('</div>');return htmlParts.join("");}
-    function generatePickingListHTML(tasks, customBomMap, componentsDb, catalogDb) {const rawMaterialTotals = {}; const stockSetTotals = {}; const isCodeTubing = {}; tasks.forEach(t => {if (t.Is_Stock) {const stockCode = t.Material_Code;if (stockCode) stockSetTotals[stockCode] = (stockSetTotals[stockCode] || 0) + t.Qty;} else {const sopId = parseInt(t['SOP No.']);const bom = customBomMap[sopId] || [];bom.forEach(part => {const pCode = part.Code;const isTubing = part.hasOwnProperty('Len') && part.Len > 0;isCodeTubing[pCode] = isTubing;const segCount = part.Count || 1;const totalNeeded = segCount * t.Qty;if (isTubing) rawMaterialTotals[pCode] = (rawMaterialTotals[pCode] || 0) + (part.Len * totalNeeded);else rawMaterialTotals[pCode] = (rawMaterialTotals[pCode] || 0) + totalNeeded;});}});let htmlParts = ['<div class="report-container"><h1>Total Material Picking List (總領料單)</h1>'];if (Object.keys(rawMaterialTotals).length > 0) {htmlParts.push('<div class="picking-title">A. Raw Materials (自製耗材總表)</div>');htmlParts.push('<table class="custom-table"><thead><tr><th style="width:20%;">Material Code</th><th style="width:50%;">Material Name / Description</th><th style="width:30%;">Total Quantity Needed</th></tr></thead><tbody>');Object.keys(rawMaterialTotals).sort().forEach(code => {const total = rawMaterialTotals[code];const matInfo = componentsDb[code] || {'Name': 'Unknown', 'Unit': '?'};const unit = isCodeTubing[code] ? "cm" : "ea";const qtyDisplay = unit === "cm" ? `<b>${total.toLocaleString(undefined, {maximumFractionDigits:0})} ${unit}</b>` : `${total.toLocaleString(undefined, {maximumFractionDigits:0})} ${unit}`;htmlParts.push(`<tr><td className="text-center"><b>${code}</b></td><td>${matInfo["Name"]}</td><td className="text-center" style="font-size:1.1em;">${qtyDisplay}</td></tr>`);});htmlParts.push('</tbody></table>');} else {htmlParts.push('<p style="padding:10px;">No raw materials required.</p>');}if (Object.keys(stockSetTotals).length > 0) {htmlParts.push('<div class="picking-title" style="margin-top:30px;">B. Stock Sets (庫存套件領取表)</div>');htmlParts.push('<table class="custom-table"><thead><tr><th style="width:20%;">Stock Code</th><th style="width:50%;">Set Name</th><th style="width:30%;">Total Sets to Pick</th></tr></thead><tbody>');const stockNameMap = {};Object.values(catalogDb).forEach(v => { if (v.Stock_Code) stockNameMap[v.Stock_Code] = v.Name; });Object.keys(stockSetTotals).sort().forEach(code => {const count = stockSetTotals[code];const name = stockNameMap[code] || "Unknown Stock Set";htmlParts.push(`<tr><td className="text-center"><b>${code}</b></td><td>${name}</td><td className="text-center" style="font-size:1.1em;"><b>${count} ea</b></td></tr>`);});htmlParts.push('</tbody></table>');}htmlParts.push('</div>');return htmlParts.join("");}
-    function downloadHtml(content, filename) {const fullHtml = `<html><head>${CSS_STRING}</head><body>${content}</body></html>`;const blob = new Blob([fullHtml], {type: 'text/html'});const url = URL.createObjectURL(blob);const a = document.createElement('a');a.href = url;a.download = filename;document.body.appendChild(a);a.click();document.body.removeChild(a);}
-    function downloadJson(data, filename) {const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});const url = URL.createObjectURL(blob);const a = document.createElement('a');a.href = url;a.download = filename;document.body.appendChild(a);a.click();document.body.removeChild(a);}
-
-    // --- COMPONENT EDITOR ---
-    const ComponentEditor = ({ dbComponents, setDbComponents, dbBom }) => {
-        const [localComps, setLocalComps] = useState(dbComponents);
-        const [editCode, setEditCode] = useState("");
-        const [editName, setEditName] = useState("");
-        const [editUnit, setEditUnit] = useState("");
-        const [errorMsg, setErrorMsg] = useState("");
-        useEffect(() => { setLocalComps(dbComponents); }, [dbComponents]);
-        const handleDelete = (code) => {
-            let used = false;
-            Object.values(dbBom).forEach(bomList => { bomList.forEach(part => { if(part.Code === code) used = true; }) });
-            if (used) { setErrorMsg(`⛔ Action Blocked: ${code} is used in BOM.`); setTimeout(() => setErrorMsg(""), 5000); return; }
-            const newC = {...localComps}; delete newC[code]; setLocalComps(newC);
-        };
-        const handleSaveRow = () => { if(editCode) { setLocalComps({...localComps, [editCode]: {Name: editName, Unit: editUnit}}); setEditCode(""); setEditName(""); setEditUnit(""); } };
-        const handleCommit = () => { setDbComponents(localComps); alert("Components Updated!"); };
-        return (
-            <div className="border p-4 mb-4 rounded">
-                <h4 className="font-bold mb-2">🔧 1. Manage Components (Delete Protected)</h4>
-                {errorMsg && <div className="bg-red-100 text-red-700 p-2 rounded mb-2">{errorMsg}</div>}
-                <div className="h-64 overflow-y-auto mb-2 border"><table className="w-full text-sm"><thead className="bg-gray-100 sticky top-0"><tr><th className="p-1 border">Code</th><th className="p-1 border">Name</th><th className="p-1 border">Unit</th><th className="p-1 border">Action</th></tr></thead><tbody>{Object.entries(localComps).map(([k, v]) => (<tr key={k} className="border-b"><td className="p-1 border">{k}</td><td className="p-1 border">{v.Name}</td><td className="p-1 border">{v.Unit}</td><td className="p-1 border text-center"><button onClick={() => handleDelete(k)} className="text-red-500">🗑️</button></td></tr>))}</tbody></table></div>
-                <div className="flex gap-2 mb-2 items-end bg-gray-50 p-2 rounded"><div><label className="text-xs">Code</label><input className="border p-1 text-sm w-20 block" value={editCode} onChange={e=>setEditCode(e.target.value)} /></div><div className="flex-1"><label className="text-xs">Name</label><input className="border p-1 text-sm w-full block" value={editName} onChange={e=>setEditName(e.target.value)} /></div><div><label className="text-xs">Unit</label><input className="border p-1 text-sm w-16 block" value={editUnit} onChange={e=>setEditUnit(e.target.value)} /></div><button onClick={handleSaveRow} className="bg-blue-500 text-white px-3 py-1 rounded text-sm">Update</button></div>
-                <button onClick={handleCommit} className="bg-green-600 text-white px-4 py-2 rounded text-sm w-full">Save Changes</button>
-            </div>
-        );
-    };
-
-    // --- CATALOG EDITOR ---
-    const CatalogEditor = ({ dbCatalog, setDbCatalog }) => {
-        const [localCat, setLocalCat] = useState(dbCatalog);
-        useEffect(() => { setLocalCat(dbCatalog); }, [dbCatalog]);
-        const handleCommit = () => { setDbCatalog(localCat); alert("Catalog Updated!"); };
-        return (
-            <div className="border p-4 mb-4 rounded">
-                <h4 className="font-bold mb-2">📂 2. Manage Catalog</h4>
-                <div className="h-64 overflow-y-auto mb-2 border"><table className="w-full text-sm"><thead className="bg-gray-100 sticky top-0"><tr><th className="p-1 border">SOP No.</th><th className="p-1 border">Name</th><th className="p-1 border">Stock Code</th></tr></thead><tbody>{Object.entries(localCat).map(([k, v]) => (<tr key={k}><td className="p-1 border">{k}</td><td className="p-1 border"><input className="w-full" value={v.Name ?? ""} onChange={(e) => setLocalCat({...localCat, [k]: {...v, Name: e.target.value}})} /></td><td className="p-1 border"><input className="w-full" value={v.Stock_Code ?? ""} onChange={(e) => setLocalCat({...localCat, [k]: {...v, Stock_Code: e.target.value}})} /></td></tr>))}</tbody></table></div>
-                <button onClick={handleCommit} className="bg-green-600 text-white px-4 py-2 rounded text-sm w-full">Save Changes</button>
-            </div>
-        );
-    };
-
-    // --- LOGIC EDITOR ---
-    const LogicEditor = ({ dbCatalog, dbDiagrams, setDbDiagrams, dbBom, setDbBom, dbComponents }) => {
-        const [selectedSop, setSelectedSop] = useState("");
-        const [diagram, setDiagram] = useState("");
-        const [bom, setBom] = useState([]);
-        useEffect(() => { const keys = Object.keys(dbCatalog); if (keys.length > 0 && (!selectedSop || !dbCatalog[selectedSop])) setSelectedSop(keys[0]); }, [dbCatalog]);
-        useEffect(() => { if (selectedSop) { setDiagram(dbDiagrams[selectedSop] ?? ""); const initialBom = (dbBom[selectedSop] ?? []).map(item => ({...item, Len: item.Len ?? 0, Count: item.Count ?? 1})); setBom(initialBom); } else { setDiagram(""); setBom([]); } }, [selectedSop, dbDiagrams, dbBom]);
-        const updateBomRow = (idx, field, val) => { setBom(prevBom => prevBom.map((item, i) => i === idx ? { ...item, [field]: val === "" ? "" : (field === 'Count' ? parseInt(val) : parseFloat(val)) } : item)); };
-        const addBomRow = () => { setBom([...bom, {Code: Object.keys(dbComponents)[0] || "", Len: 0, Count: 1}]); };
-        const removeBomRow = (idx) => setBom(bom.filter((_, i) => i !== idx));
-        const handleSave = () => { if (!selectedSop) return; const cleanBom = bom.map(item => ({...item, Len: !isNaN(parseFloat(item.Len)) ? parseFloat(item.Len) : 0, Count: !isNaN(parseInt(item.Count)) ? parseInt(item.Count) : 1})).filter(item => item.Count > 0); setDbDiagrams({...dbDiagrams, [selectedSop]: diagram}); setDbBom({...dbBom, [selectedSop]: cleanBom}); alert("Logic Updated!"); };
-        if (!selectedSop && Object.keys(dbCatalog).length === 0) return <div>No Catalog items.</div>;
-        return (
-            <div className="border p-4 mb-4 rounded">
-                <h4 className="font-bold mb-2">🛠️ 3. Assembly Logic</h4>
-                <div className="flex gap-4 mb-4">
-                    <div className="w-1/3"><label className="text-sm font-bold block mb-1">Select Tubing Set</label><select className="w-full border p-2" value={selectedSop ?? ""} onChange={e => setSelectedSop(e.target.value)}>{Object.keys(dbCatalog).map(k => <option key={k} value={k}>No. {k}</option>)}</select></div>
-                    <div className="w-2/3"><label className="text-sm font-bold block mb-1">A. Diagram (ASCII)</label><textarea className="w-full border p-2 font-mono text-xs h-24" value={diagram ?? ""} onChange={e => setDiagram(e.target.value)}></textarea><label className="text-sm font-bold block mt-2 mb-1">B. BOM</label><div className="border p-2 bg-gray-50">{bom.map((row, idx) => (<div key={idx} className="flex gap-2 mb-1"><select className="border text-xs w-40" value={row.Code ?? ""} onChange={e => updateBomRow(idx, 'Code', e.target.value)}>{Object.keys(dbComponents).map(c => <option key={c} value={c}>{c}</option>)}</select><input type="number" className="border text-xs w-20" placeholder="Len" value={row.Len} onChange={e => updateBomRow(idx, 'Len', e.target.value)} /><input type="number" className="border text-xs w-16" placeholder="Count" value={row.Count} onChange={e => updateBomRow(idx, 'Count', e.target.value)} /><button onClick={() => removeBomRow(idx)} className="text-red-500">x</button></div>))}<button onClick={addBomRow} className="text-xs bg-gray-200 px-2 py-1 rounded">+ Add Row</button></div><button onClick={handleSave} className="mt-4 bg-green-600 text-white px-4 py-2 rounded text-sm w-full">💾 Save Logic for No. {selectedSop}</button></div>
+            const handleSaveRow = () => { if (editCode) { setLocalComps({ ...localComps, [editCode]: { Name: editName, Unit: editUnit } }); setEditCode(""); setEditName(""); setEditUnit(""); } };
+            const handleCommit = () => { setDbComponents(localComps); alert("Components Updated!"); };
+            return (
+                <div className="border p-4 mb-4 rounded">
+                    <h4 className="font-bold mb-2">🔧 1. Manage Components (Delete Protected)</h4>
+                    {errorMsg && <div className="bg-red-100 text-red-700 p-2 rounded mb-2">{errorMsg}</div>}
+                    <div className="h-64 overflow-y-auto mb-2 border"><table className="w-full text-sm"><thead className="bg-gray-100 sticky top-0"><tr><th className="p-1 border">Code</th><th className="p-1 border">Name</th><th className="p-1 border">Unit</th><th className="p-1 border">Action</th></tr></thead><tbody>{Object.entries(localComps).map(([k, v]) => (<tr key={k} className="border-b"><td className="p-1 border">{k}</td><td className="p-1 border">{v.Name}</td><td className="p-1 border">{v.Unit}</td><td className="p-1 border text-center"><button onClick={() => handleDelete(k)} className="text-red-500">🗑️</button></td></tr>))}</tbody></table></div>
+                    <div className="flex gap-2 mb-2 items-end bg-gray-50 p-2 rounded"><div><label className="text-xs">Code</label><input className="border p-1 text-sm w-20 block" value={editCode} onChange={e => setEditCode(e.target.value)} /></div><div className="flex-1"><label className="text-xs">Name</label><input className="border p-1 text-sm w-full block" value={editName} onChange={e => setEditName(e.target.value)} /></div><div><label className="text-xs">Unit</label><input className="border p-1 text-sm w-16 block" value={editUnit} onChange={e => setEditUnit(e.target.value)} /></div><button onClick={handleSaveRow} className="bg-blue-500 text-white px-3 py-1 rounded text-sm">Update</button></div>
+                    <button onClick={handleCommit} className="bg-green-600 text-white px-4 py-2 rounded text-sm w-full">Save Changes</button>
                 </div>
-            </div>
-        );
-    };
-
-    // --- AUTOCLAVE MODULE ---
-    const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, setPatternsList, inventoryB, setInventoryB, manualCart, setManualCart }) => {
-        const [selectedItem, setSelectedItem] = useState("");
-        const [quantity, setQuantity] = useState(1);
-        const [expandedPatternId, setExpandedPatternId] = useState(null);
-        const [includeStock, setIncludeStock] = useState(false);
-        
-        const plannerQueue = useMemo(() => {
-            const queue = [];
-            const aggregation = {};
-            plannerAssignments.forEach(assign => {
-                if (!assign.Is_Stock || includeStock) {
-                    const normName = normalizeName(assign.Name);
-                    aggregation[normName] = (aggregation[normName] || 0) + assign.Qty;
-                }
-            });
-            Object.entries(aggregation).forEach(([name, qty]) => {
-                queue.push({ item: name, qty: qty, source: 'planner' });
-            });
-            return queue;
-        }, [plannerAssignments, includeStock]);
-
-        const combinedCart = useMemo(() => [...plannerQueue, ...manualCart], [plannerQueue, manualCart]);
-        const { schedule, unassignable } = useMemo(() => calculateSchedule(combinedCart, patternsList), [combinedCart, patternsList]);
-
-        const handleAddManualItem = () => {
-            if (!selectedItem) return;
-            const existing = manualCart.find(i => i.item === selectedItem);
-            if (existing) { setManualCart(manualCart.map(i => i.item === selectedItem ? { ...i, qty: i.qty + quantity } : i)); }
-            else { setManualCart([...manualCart, { item: selectedItem, qty: quantity, source: 'manual' }]); }
-            setQuantity(1);
-        };
-        const handleRemoveManualItem = (item) => { setManualCart(manualCart.filter(i => i.item !== item)); };
-        const handleClearManualCart = () => { if (window.confirm("Clear all manual items?")) setManualCart([]); };
-
-        const handleAddPattern = () => {
-            const newId = patternsList.length > 0 ? Math.max(...patternsList.map(p => p.id)) + 1 : 1;
-            setPatternsList([...patternsList, { id: newId, name: "New Pattern", program: "P01", description: "", zones: [] }]);
-            setExpandedPatternId(newId);
-        };
-        const handleDeletePattern = (id) => setPatternsList(patternsList.filter(p => p.id !== id));
-        const handleUpdatePattern = (id, field, value) => setPatternsList(patternsList.map(p => p.id === id ? { ...p, [field]: value } : p));
-        const handleAddZone = (pid) => setPatternsList(patternsList.map(p => p.id === pid ? { ...p, zones: [...p.zones, {name:"New Zone", capacity:1, allowed:[]}] } : p));
-        const handleDeleteZone = (pid, zidx) => setPatternsList(patternsList.map(p => { if(p.id!==pid)return p; const nz=[...p.zones]; nz.splice(zidx,1); return {...p, zones:nz}; }));
-        const handleUpdateZone = (pid, zidx, f, v) => setPatternsList(patternsList.map(p => { if(p.id!==pid)return p; const nz=[...p.zones]; nz[zidx]={...nz[zidx], [f]:v}; return {...p, zones:nz}; }));
-        const handleAddAllowedItem = (pid, zidx, item) => {
-            if(!item) return;
-            setPatternsList(patternsList.map(p => {
-                if(p.id!==pid) return p;
-                const nz=[...p.zones];
-                if(!nz[zidx].allowed.includes(item)) nz[zidx]={...nz[zidx], allowed:[...nz[zidx].allowed, item]};
-                return {...p, zones:nz};
-            }));
-        };
-        const handleRemoveAllowedItem = (pid, zidx, item) => {
-            setPatternsList(patternsList.map(p => {
-                if(p.id!==pid) return p;
-                const nz=[...p.zones];
-                nz[zidx]={...nz[zidx], allowed: nz[zidx].allowed.filter(i=>i!==item)};
-                return {...p, zones:nz};
-            }));
+            );
         };
 
-        const groupAItems = useMemo(() => [...new Set(Object.values(dbCatalog).map(c => normalizeName(c.Name)))].sort(), [dbCatalog]);
-        const groupBItems = useMemo(() => [...new Set(inventoryB)].sort(), [inventoryB]);
+        // --- CATALOG EDITOR ---
+        const CatalogEditor = ({ dbCatalog, setDbCatalog }) => {
+            const [localCat, setLocalCat] = useState(dbCatalog);
+            useEffect(() => { setLocalCat(dbCatalog); }, [dbCatalog]);
+            const handleCommit = () => { setDbCatalog(localCat); alert("Catalog Updated!"); };
+            return (
+                <div className="border p-4 mb-4 rounded">
+                    <h4 className="font-bold mb-2">📂 2. Manage Catalog</h4>
+                    <div className="h-64 overflow-y-auto mb-2 border"><table className="w-full text-sm"><thead className="bg-gray-100 sticky top-0"><tr><th className="p-1 border">SOP No.</th><th className="p-1 border">Name</th><th className="p-1 border">Stock Code</th></tr></thead><tbody>{Object.entries(localCat).map(([k, v]) => (<tr key={k}><td className="p-1 border">{k}</td><td className="p-1 border"><input className="w-full" value={v.Name ?? ""} onChange={(e) => setLocalCat({ ...localCat, [k]: { ...v, Name: e.target.value } })} /></td><td className="p-1 border"><input className="w-full" value={v.Stock_Code ?? ""} onChange={(e) => setLocalCat({ ...localCat, [k]: { ...v, Stock_Code: e.target.value } })} /></td></tr>))}</tbody></table></div>
+                    <button onClick={handleCommit} className="bg-green-600 text-white px-4 py-2 rounded text-sm w-full">Save Changes</button>
+                </div>
+            );
+        };
 
-        return (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in text-gray-800">
-                <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 shadow-sm">
-                        <div className="flex justify-between items-start mb-2"><h3 className="font-bold text-blue-800 flex items-center gap-2"><Icons.RefreshCw className="w-4 h-4"/> Imported from Planner</h3><div className="flex items-center gap-1"><input type="checkbox" id="incStock" checked={includeStock} onChange={e => setIncludeStock(e.target.checked)} className="cursor-pointer" /><label htmlFor="incStock" className="text-xs text-blue-800 cursor-pointer select-none">Include Stock</label></div></div>
-                        <ul className="space-y-1 max-h-40 overflow-y-auto custom-scroll pr-2">{plannerQueue.map((item, idx) => (<li key={idx} className="flex justify-between text-sm bg-white p-1 rounded border border-blue-100"><span className="truncate w-48" title={item.item}>{item.item}</span><span className="font-bold text-blue-600">x{item.qty}</span></li>))}</ul>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow-sm border">
-                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2"><Icons.Plus className="w-5 h-5 text-green-600" /> Add Extra Items (Group B)</h2>
-                        <div className="space-y-4"><div><label className="block text-sm font-medium text-gray-700 mb-1">Select Item</label><select className="w-full border border-gray-300 rounded-md p-2 text-sm outline-none" value={selectedItem} onChange={(e) => setSelectedItem(e.target.value)}><option value="">-- Select Item --</option><optgroup label="Group B: Equipment & Parts">{groupBItems.map(item => <option key={item} value={item}>{item}</option>)}</optgroup><optgroup label="Group A: Tubing Sets (Manual Add)">{groupAItems.map(item => <option key={item} value={item}>{item}</option>)}</optgroup></select></div><div className="flex gap-2"><input type="number" min="1" className="w-20 border rounded p-2 text-sm" value={quantity} onChange={(e) => setQuantity(parseInt(e.target.value)||1)} /><button onClick={handleAddManualItem} disabled={!selectedItem} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50">Add to Queue</button></div></div>
-                        <div className="mt-4 border-t pt-4"><div className="flex justify-between items-center mb-2"><h4 className="font-bold text-sm">Manual Queue</h4>{manualCart.length > 0 && <button onClick={handleClearManualCart} className="text-xs text-red-500 hover:text-red-700">Clear All</button>}</div><ul className="space-y-2 max-h-40 overflow-y-auto custom-scroll">{manualCart.map((c, idx) => (<li key={idx} className="flex justify-between items-center bg-gray-50 p-2 rounded border"><span className="text-sm truncate w-40" title={c.item}>{c.item}</span><div className="flex items-center gap-2"><span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">x{c.qty}</span><button onClick={() => handleRemoveManualItem(c.item)} className="text-red-400 hover:text-red-600"><Icons.Trash2 className="w-4 h-4"/></button></div></li>))}</ul></div>
+        // --- LOGIC EDITOR ---
+        const LogicEditor = ({ dbCatalog, dbDiagrams, setDbDiagrams, dbBom, setDbBom, dbComponents }) => {
+            const [selectedSop, setSelectedSop] = useState("");
+            const [diagram, setDiagram] = useState("");
+            const [bom, setBom] = useState([]);
+            useEffect(() => { const keys = Object.keys(dbCatalog); if (keys.length > 0 && (!selectedSop || !dbCatalog[selectedSop])) setSelectedSop(keys[0]); }, [dbCatalog]);
+            useEffect(() => { if (selectedSop) { setDiagram(dbDiagrams[selectedSop] ?? ""); const initialBom = (dbBom[selectedSop] ?? []).map(item => ({ ...item, Len: item.Len ?? 0, Count: item.Count ?? 1 })); setBom(initialBom); } else { setDiagram(""); setBom([]); } }, [selectedSop, dbDiagrams, dbBom]);
+            const updateBomRow = (idx, field, val) => { setBom(prevBom => prevBom.map((item, i) => i === idx ? { ...item, [field]: val === "" ? "" : (field === 'Count' ? parseInt(val) : parseFloat(val)) } : item)); };
+            const addBomRow = () => { setBom([...bom, { Code: Object.keys(dbComponents)[0] || "", Len: 0, Count: 1 }]); };
+            const removeBomRow = (idx) => setBom(bom.filter((_, i) => i !== idx));
+            const handleSave = () => { if (!selectedSop) return; const cleanBom = bom.map(item => ({ ...item, Len: !isNaN(parseFloat(item.Len)) ? parseFloat(item.Len) : 0, Count: !isNaN(parseInt(item.Count)) ? parseInt(item.Count) : 1 })).filter(item => item.Count > 0); setDbDiagrams({ ...dbDiagrams, [selectedSop]: diagram }); setDbBom({ ...dbBom, [selectedSop]: cleanBom }); alert("Logic Updated!"); };
+            if (!selectedSop && Object.keys(dbCatalog).length === 0) return <div>No Catalog items.</div>;
+            return (
+                <div className="border p-4 mb-4 rounded">
+                    <h4 className="font-bold mb-2">🛠️ 3. Assembly Logic</h4>
+                    <div className="flex gap-4 mb-4">
+                        <div className="w-1/3"><label className="text-sm font-bold block mb-1">Select Tubing Set</label><select className="w-full border p-2" value={selectedSop ?? ""} onChange={e => setSelectedSop(e.target.value)}>{Object.keys(dbCatalog).map(k => <option key={k} value={k}>No. {k}</option>)}</select></div>
+                        <div className="w-2/3"><label className="text-sm font-bold block mb-1">A. Diagram (ASCII)</label><textarea className="w-full border p-2 font-mono text-xs h-24" value={diagram ?? ""} onChange={e => setDiagram(e.target.value)}></textarea><label className="text-sm font-bold block mt-2 mb-1">B. BOM</label><div className="border p-2 bg-gray-50">{bom.map((row, idx) => (<div key={idx} className="flex gap-2 mb-1"><select className="border text-xs w-40" value={row.Code ?? ""} onChange={e => updateBomRow(idx, 'Code', e.target.value)}>{Object.keys(dbComponents).map(c => <option key={c} value={c}>{c}</option>)}</select><input type="number" className="border text-xs w-20" placeholder="Len" value={row.Len} onChange={e => updateBomRow(idx, 'Len', e.target.value)} /><input type="number" className="border text-xs w-16" placeholder="Count" value={row.Count} onChange={e => updateBomRow(idx, 'Count', e.target.value)} /><button onClick={() => removeBomRow(idx)} className="text-red-500">x</button></div>))}<button onClick={addBomRow} className="text-xs bg-gray-200 px-2 py-1 rounded">+ Add Row</button></div><button onClick={handleSave} className="mt-4 bg-green-600 text-white px-4 py-2 rounded text-sm w-full">💾 Save Logic for No. {selectedSop}</button></div>
                     </div>
                 </div>
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white p-6 rounded-lg shadow-sm min-h-[400px] border">
-                         <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b pb-2"><Icons.Package className="w-5 h-5 text-blue-600" /> Sterilization Schedule (Total: {combinedCart.reduce((a,c)=>a+c.qty,0)})</h2>
-                        {schedule.length === 0 && unassignable.length === 0 ? (<div className="text-center py-12 text-gray-400"><Icons.Info className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>Add items to generate schedule</p></div>) : (
-                            <div className="space-y-6">
-                                {unassignable.length > 0 && (<div className="bg-red-50 border border-red-200 rounded-lg p-4"><h3 className="text-red-800 font-bold flex items-center gap-2"><Icons.AlertCircle className="w-4 h-4"/> Unassignable Items</h3><ul className="list-disc list-inside mt-2 text-xs text-red-700">{unassignable.map((u, i) => <li key={i}>{u.item} (x{u.qty})</li>)}</ul></div>)}
-                                {schedule.map(cycle => (
-                                    <div key={cycle.cycleNumber} className="relative pl-8 border-l-2 border-gray-200 pb-2">
-                                        <div className="absolute -left-3 top-0 bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm">{cycle.cycleNumber}</div>
-                                        <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden"><div className="bg-gray-50 p-2 border-b flex justify-between items-center"><div><span className="font-bold text-gray-800">{cycle.pattern.name}</span> <span className="text-xs text-gray-500">({cycle.pattern.program})</span></div><span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">{cycle.loadedItems.length} items</span></div><div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">{cycle.loadedItems.map((detail, i) => (<div key={i} className="text-sm text-gray-700 flex items-start gap-2"><Icons.ArrowRight className="w-3 h-3 text-gray-300 mt-1 flex-shrink-0" /><span>{detail}</span></div>))}</div></div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+            );
+        };
+
+        // --- AUTOCLAVE MODULE ---
+        const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, setPatternsList, inventoryB, setInventoryB, manualCart, setManualCart }) => {
+            const [selectedItem, setSelectedItem] = useState("");
+            const [quantity, setQuantity] = useState(1);
+            const [expandedPatternId, setExpandedPatternId] = useState(null);
+            const [includeStock, setIncludeStock] = useState(false);
+
+            const plannerQueue = useMemo(() => {
+                const queue = [];
+                const aggregation = {};
+                plannerAssignments.forEach(assign => {
+                    if (!assign.Is_Stock || includeStock) {
+                        const normName = normalizeName(assign.Name);
+                        aggregation[normName] = (aggregation[normName] || 0) + assign.Qty;
+                    }
+                });
+                Object.entries(aggregation).forEach(([name, qty]) => {
+                    queue.push({ item: name, qty: qty, source: 'planner' });
+                });
+                return queue;
+            }, [plannerAssignments, includeStock]);
+
+            const combinedCart = useMemo(() => [...plannerQueue, ...manualCart], [plannerQueue, manualCart]);
+            const { schedule, unassignable } = useMemo(() => calculateSchedule(combinedCart, patternsList), [combinedCart, patternsList]);
+
+            const handleAddManualItem = () => {
+                if (!selectedItem) return;
+                const existing = manualCart.find(i => i.item === selectedItem);
+                if (existing) { setManualCart(manualCart.map(i => i.item === selectedItem ? { ...i, qty: i.qty + quantity } : i)); }
+                else { setManualCart([...manualCart, { item: selectedItem, qty: quantity, source: 'manual' }]); }
+                setQuantity(1);
+            };
+            const handleRemoveManualItem = (item) => { setManualCart(manualCart.filter(i => i.item !== item)); };
+            const handleClearManualCart = () => { if (window.confirm("Clear all manual items?")) setManualCart([]); };
+
+            const handleAddPattern = () => {
+                const newId = patternsList.length > 0 ? Math.max(...patternsList.map(p => p.id)) + 1 : 1;
+                setPatternsList([...patternsList, { id: newId, name: "New Pattern", program: "P01", description: "", zones: [] }]);
+                setExpandedPatternId(newId);
+            };
+            const handleDeletePattern = (id) => setPatternsList(patternsList.filter(p => p.id !== id));
+            const handleUpdatePattern = (id, field, value) => setPatternsList(patternsList.map(p => p.id === id ? { ...p, [field]: value } : p));
+            const handleAddZone = (pid) => setPatternsList(patternsList.map(p => p.id === pid ? { ...p, zones: [...p.zones, { name: "New Zone", capacity: 1, allowed: [] }] } : p));
+            const handleDeleteZone = (pid, zidx) => setPatternsList(patternsList.map(p => { if (p.id !== pid) return p; const nz = [...p.zones]; nz.splice(zidx, 1); return { ...p, zones: nz }; }));
+            const handleUpdateZone = (pid, zidx, f, v) => setPatternsList(patternsList.map(p => { if (p.id !== pid) return p; const nz = [...p.zones]; nz[zidx] = { ...nz[zidx], [f]: v }; return { ...p, zones: nz }; }));
+            const handleAddAllowedItem = (pid, zidx, item) => {
+                if (!item) return;
+                setPatternsList(patternsList.map(p => {
+                    if (p.id !== pid) return p;
+                    const nz = [...p.zones];
+                    if (!nz[zidx].allowed.includes(item)) nz[zidx] = { ...nz[zidx], allowed: [...nz[zidx].allowed, item] };
+                    return { ...p, zones: nz };
+                }));
+            };
+            const handleRemoveAllowedItem = (pid, zidx, item) => {
+                setPatternsList(patternsList.map(p => {
+                    if (p.id !== pid) return p;
+                    const nz = [...p.zones];
+                    nz[zidx] = { ...nz[zidx], allowed: nz[zidx].allowed.filter(i => i !== item) };
+                    return { ...p, zones: nz };
+                }));
+            };
+
+            const groupAItems = useMemo(() => [...new Set(Object.values(dbCatalog).map(c => normalizeName(c.Name)))].sort(), [dbCatalog]);
+            const groupBItems = useMemo(() => [...new Set(inventoryB)].sort(), [inventoryB]);
+
+            return (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in text-gray-800">
+                    <div className="lg:col-span-1 space-y-6">
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 shadow-sm">
+                            <div className="flex justify-between items-start mb-2"><h3 className="font-bold text-blue-800 flex items-center gap-2"><Icons.RefreshCw className="w-4 h-4" /> Imported from Planner</h3><div className="flex items-center gap-1"><input type="checkbox" id="incStock" checked={includeStock} onChange={e => setIncludeStock(e.target.checked)} className="cursor-pointer" /><label htmlFor="incStock" className="text-xs text-blue-800 cursor-pointer select-none">Include Stock</label></div></div>
+                            <ul className="space-y-1 max-h-40 overflow-y-auto custom-scroll pr-2">{plannerQueue.map((item, idx) => (<li key={idx} className="flex justify-between text-sm bg-white p-1 rounded border border-blue-100"><span className="truncate w-48" title={item.item}>{item.item}</span><span className="font-bold text-blue-600">x{item.qty}</span></li>))}</ul>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow-sm border">
+                            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2"><Icons.Plus className="w-5 h-5 text-green-600" /> Add Extra Items (Group B)</h2>
+                            <div className="space-y-4"><div><label className="block text-sm font-medium text-gray-700 mb-1">Select Item</label><select className="w-full border border-gray-300 rounded-md p-2 text-sm outline-none" value={selectedItem} onChange={(e) => setSelectedItem(e.target.value)}><option value="">-- Select Item --</option><optgroup label="Group B: Equipment & Parts">{groupBItems.map(item => <option key={item} value={item}>{item}</option>)}</optgroup><optgroup label="Group A: Tubing Sets (Manual Add)">{groupAItems.map(item => <option key={item} value={item}>{item}</option>)}</optgroup></select></div><div className="flex gap-2"><input type="number" min="1" className="w-20 border rounded p-2 text-sm" value={quantity} onChange={(e) => setQuantity(parseInt(e.target.value) || 1)} /><button onClick={handleAddManualItem} disabled={!selectedItem} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50">Add to Queue</button></div></div>
+                            <div className="mt-4 border-t pt-4"><div className="flex justify-between items-center mb-2"><h4 className="font-bold text-sm">Manual Queue</h4>{manualCart.length > 0 && <button onClick={handleClearManualCart} className="text-xs text-red-500 hover:text-red-700">Clear All</button>}</div><ul className="space-y-2 max-h-40 overflow-y-auto custom-scroll">{manualCart.map((c, idx) => (<li key={idx} className="flex justify-between items-center bg-gray-50 p-2 rounded border"><span className="text-sm truncate w-40" title={c.item}>{c.item}</span><div className="flex items-center gap-2"><span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">x{c.qty}</span><button onClick={() => handleRemoveManualItem(c.item)} className="text-red-400 hover:text-red-600"><Icons.Trash2 className="w-4 h-4" /></button></div></li>))}</ul></div>
+                        </div>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded border">
-                        <h3 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><Icons.Settings className="w-4 h-4"/> Pattern Configuration</h3>
-                        <button onClick={handleAddPattern} className="text-xs bg-white border px-2 py-1 rounded mb-4 hover:bg-gray-100">+ New Pattern</button>
-                        <div className="space-y-2 max-h-96 overflow-y-auto custom-scroll pr-2">
-                            {patternsList.map(pattern => {
-                                const isExpanded = expandedPatternId === pattern.id;
-                                return (
-                                    <div key={pattern.id} className="bg-white border rounded">
-                                        <div className="p-3 flex justify-between items-center cursor-pointer hover:bg-gray-50" onClick={() => setExpandedPatternId(isExpanded ? null : pattern.id)}>
-                                            <span className="font-bold text-sm">{pattern.name} <span className="font-normal text-xs text-gray-500">({pattern.zones.length} Zones)</span></span>
-                                            {isExpanded ? <Icons.ChevronUp className="w-4 h-4"/> : <Icons.ChevronDown className="w-4 h-4"/>}
+                    <div className="lg:col-span-2 space-y-6">
+                        <div className="bg-white p-6 rounded-lg shadow-sm min-h-[400px] border">
+                            <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b pb-2"><Icons.Package className="w-5 h-5 text-blue-600" /> Sterilization Schedule (Total: {combinedCart.reduce((a, c) => a + c.qty, 0)})</h2>
+                            {schedule.length === 0 && unassignable.length === 0 ? (<div className="text-center py-12 text-gray-400"><Icons.Info className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>Add items to generate schedule</p></div>) : (
+                                <div className="space-y-6">
+                                    {unassignable.length > 0 && (<div className="bg-red-50 border border-red-200 rounded-lg p-4"><h3 className="text-red-800 font-bold flex items-center gap-2"><Icons.AlertCircle className="w-4 h-4" /> Unassignable Items</h3><ul className="list-disc list-inside mt-2 text-xs text-red-700">{unassignable.map((u, i) => <li key={i}>{u.item} (x{u.qty})</li>)}</ul></div>)}
+                                    {schedule.map(cycle => (
+                                        <div key={cycle.cycleNumber} className="relative pl-8 border-l-2 border-gray-200 pb-2">
+                                            <div className="absolute -left-3 top-0 bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm">{cycle.cycleNumber}</div>
+                                            <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden"><div className="bg-gray-50 p-2 border-b flex justify-between items-center"><div><span className="font-bold text-gray-800">{cycle.pattern.name}</span> <span className="text-xs text-gray-500">({cycle.pattern.program})</span></div><span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">{cycle.loadedItems.length} items</span></div><div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">{cycle.loadedItems.map((detail, i) => (<div key={i} className="text-sm text-gray-700 flex items-start gap-2"><Icons.ArrowRight className="w-3 h-3 text-gray-300 mt-1 flex-shrink-0" /><span>{detail}</span></div>))}</div></div>
                                         </div>
-                                        {isExpanded && (
-                                            <div className="p-3 border-t bg-gray-50">
-                                                <div className="grid grid-cols-2 gap-2 mb-2"><input className="border p-1 text-xs rounded" value={pattern.name} onChange={e=>handleUpdatePattern(pattern.id,'name',e.target.value)} placeholder="Name"/><input className="border p-1 text-xs rounded" value={pattern.program} onChange={e=>handleUpdatePattern(pattern.id,'program',e.target.value)} placeholder="Program"/></div>
-                                                <div className="space-y-2"><div className="flex justify-between items-center"><span className="text-xs font-bold">Zones</span><button onClick={()=>handleAddZone(pattern.id)} className="text-xs bg-blue-100 px-2 rounded">+ Zone</button></div>
-                                                    {pattern.zones.map((zone, zIdx) => (
-                                                        <div key={zIdx} className="bg-white border p-2 rounded">
-                                                            <div className="flex gap-2 mb-1"><input className="flex-1 border text-xs p-1" value={zone.name} onChange={e=>handleUpdateZone(pattern.id,zIdx,'name',e.target.value)} /><input type="number" className="w-12 border text-xs p-1" value={zone.capacity} onChange={e=>handleUpdateZone(pattern.id,zIdx,'capacity',parseInt(e.target.value))} /><button onClick={()=>handleDeleteZone(pattern.id,zIdx)} className="text-red-400"><Icons.Trash2 className="w-3 h-3"/></button></div>
-                                                            <div className="flex flex-wrap gap-1 mb-1">{zone.allowed.map(item => (<span key={item} className="text-xs bg-blue-50 text-blue-800 px-1 rounded flex items-center gap-1" title={item}>{item.slice(0,15)}... <button onClick={()=>handleRemoveAllowedItem(pattern.id,zIdx,item)}><Icons.X className="w-3 h-3"/></button></span>))}</div>
-                                                            {zone.rules && zone.rules.length > 0 && (<div className="mt-2 bg-yellow-50 p-2 rounded border border-yellow-200 text-xs"><span className="font-bold text-yellow-700 block mb-1">Constraints:</span><ul className="list-disc list-inside text-yellow-800">{zone.rules.map((rule, rIdx) => rule.items && rule.max ? (<li key={rIdx}>Max <strong>{rule.max}</strong> for: {rule.items.join(", ")}</li>) : null)}</ul></div>)}
-                                                            <select className="w-full text-xs border p-1" onChange={e=>handleAddAllowedItem(pattern.id, zIdx, e.target.value)} value=""><option value="">+ Add Item...</option><optgroup label="Tubing">{groupAItems.map(i=><option key={i} value={i} disabled={zone.allowed.includes(i)}>{i}</option>)}</optgroup><optgroup label="Equipment">{groupBItems.map(i=><option key={i} value={i} disabled={zone.allowed.includes(i)}>{i}</option>)}</optgroup></select>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <button onClick={()=>handleDeletePattern(pattern.id)} className="mt-2 text-xs text-red-500 underline">Delete Pattern</button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded border">
+                            <h3 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><Icons.Settings className="w-4 h-4" /> Pattern Configuration</h3>
+                            <button onClick={handleAddPattern} className="text-xs bg-white border px-2 py-1 rounded mb-4 hover:bg-gray-100">+ New Pattern</button>
+                            <div className="space-y-2 max-h-96 overflow-y-auto custom-scroll pr-2">
+                                {patternsList.map(pattern => {
+                                    const isExpanded = expandedPatternId === pattern.id;
+                                    return (
+                                        <div key={pattern.id} className="bg-white border rounded">
+                                            <div className="p-3 flex justify-between items-center cursor-pointer hover:bg-gray-50" onClick={() => setExpandedPatternId(isExpanded ? null : pattern.id)}>
+                                                <span className="font-bold text-sm">{pattern.name} <span className="font-normal text-xs text-gray-500">({pattern.zones.length} Zones)</span></span>
+                                                {isExpanded ? <Icons.ChevronUp className="w-4 h-4" /> : <Icons.ChevronDown className="w-4 h-4" />}
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                            {isExpanded && (
+                                                <div className="p-3 border-t bg-gray-50">
+                                                    <div className="grid grid-cols-2 gap-2 mb-2"><input className="border p-1 text-xs rounded" value={pattern.name} onChange={e => handleUpdatePattern(pattern.id, 'name', e.target.value)} placeholder="Name" /><input className="border p-1 text-xs rounded" value={pattern.program} onChange={e => handleUpdatePattern(pattern.id, 'program', e.target.value)} placeholder="Program" /></div>
+                                                    <div className="space-y-2"><div className="flex justify-between items-center"><span className="text-xs font-bold">Zones</span><button onClick={() => handleAddZone(pattern.id)} className="text-xs bg-blue-100 px-2 rounded">+ Zone</button></div>
+                                                        {pattern.zones.map((zone, zIdx) => (
+                                                            <div key={zIdx} className="bg-white border p-2 rounded">
+                                                                <div className="flex gap-2 mb-1"><input className="flex-1 border text-xs p-1" value={zone.name} onChange={e => handleUpdateZone(pattern.id, zIdx, 'name', e.target.value)} /><input type="number" className="w-12 border text-xs p-1" value={zone.capacity} onChange={e => handleUpdateZone(pattern.id, zIdx, 'capacity', parseInt(e.target.value))} /><button onClick={() => handleDeleteZone(pattern.id, zIdx)} className="text-red-400"><Icons.Trash2 className="w-3 h-3" /></button></div>
+                                                                <div className="flex flex-wrap gap-1 mb-1">{zone.allowed.map(item => (<span key={item} className="text-xs bg-blue-50 text-blue-800 px-1 rounded flex items-center gap-1" title={item}>{item.slice(0, 15)}... <button onClick={() => handleRemoveAllowedItem(pattern.id, zIdx, item)}><Icons.X className="w-3 h-3" /></button></span>))}</div>
+                                                                {zone.rules && zone.rules.length > 0 && (<div className="mt-2 bg-yellow-50 p-2 rounded border border-yellow-200 text-xs"><span className="font-bold text-yellow-700 block mb-1">Constraints:</span><ul className="list-disc list-inside text-yellow-800">{zone.rules.map((rule, rIdx) => rule.items && rule.max ? (<li key={rIdx}>Max <strong>{rule.max}</strong> for: {rule.items.join(", ")}</li>) : null)}</ul></div>)}
+                                                                <select className="w-full text-xs border p-1" onChange={e => handleAddAllowedItem(pattern.id, zIdx, e.target.value)} value=""><option value="">+ Add Item...</option><optgroup label="Tubing">{groupAItems.map(i => <option key={i} value={i} disabled={zone.allowed.includes(i)}>{i}</option>)}</optgroup><optgroup label="Equipment">{groupBItems.map(i => <option key={i} value={i} disabled={zone.allowed.includes(i)}>{i}</option>)}</optgroup></select>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <button onClick={() => handleDeletePattern(pattern.id)} className="mt-2 text-xs text-red-500 underline">Delete Pattern</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        );
-    };
+            );
+        };
 
-    // --- MAIN APP ---
-    function App() {
-        const [dbComponents, setDbComponents] = useState(DEFAULT_COMPONENTS);
-        const [dbCatalog, setDbCatalog] = useState(DEFAULT_CATALOG);
-        const [dbDiagrams, setDbDiagrams] = useState(DEFAULT_DIAGRAMS);
-        const [dbBom, setDbBom] = useState(DEFAULT_BOM);
-        const [stageList, setStageList] = useState(DEFAULT_STAGES);
-        const [assignments, setAssignments] = useState([]);
-        const [activeTab, setActiveTab] = useState("tab1");
-        
-        // --- SAFE INITIALIZATION (v30.10 Fix) ---
-        // 1. Initialize with empty array to avoid ReferenceError
-        const [autoclavePatterns, setAutoclavePatterns] = useState([]); 
-        const [autoclaveInventoryB, setAutoclaveInventoryB] = useState(DEFAULT_AUTOCLAVE_GROUP_B);
-        const [autoclaveManualCart, setAutoclaveManualCart] = useState([]); 
-        
-        // 2. Use useEffect to safely populate data from the Defined Constant
-        useEffect(() => {
-            try {
-                // Use DEFAULT_AUTOCLAVE_PATTERNS_DATA (the correct variable name)
-                const normalizedPatterns = DEFAULT_AUTOCLAVE_PATTERNS_DATA.map(p => ({
-                    ...p, 
-                    zones: p.zones.map(z => ({
-                        ...z, 
-                        allowed: [...new Set(z.allowed.map(normalizeName))], 
-                        rules: z.rules ? z.rules.map(r => ({...r, items: [...new Set(r.items.map(normalizeName))] })) : undefined
-                    }))
-                }));
-                setAutoclavePatterns(normalizedPatterns);
-            } catch (err) {
-                console.error("Pattern Initialization Error:", err);
-                alert("Critical Error initializing patterns. Check console.");
-            }
-        }, []);
+        // --- MAIN APP ---
+        function App() {
+            const [dbComponents, setDbComponents] = useState(DEFAULT_COMPONENTS);
+            const [dbCatalog, setDbCatalog] = useState(DEFAULT_CATALOG);
+            const [dbDiagrams, setDbDiagrams] = useState(DEFAULT_DIAGRAMS);
+            const [dbBom, setDbBom] = useState(DEFAULT_BOM);
+            const [stageList, setStageList] = useState(DEFAULT_STAGES);
+            const [assignments, setAssignments] = useState([]);
+            const [activeTab, setActiveTab] = useState("tab1");
 
-        const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-        const [newStage, setNewStage] = useState("");
-        const [delStage, setDelStage] = useState("(Select)"); 
-        const [targetStage, setTargetStage] = useState("");
-        const [selectedTubingId, setSelectedTubingId] = useState("");
-        const [useStock, setUseStock] = useState(false);
-        const [qty, setQty] = useState(1);
-        
-        useEffect(() => { if (stageList.length > 0 && !targetStage) setTargetStage(stageList[0]); }, [stageList, targetStage]);
-        useEffect(() => { const keys = Object.keys(dbCatalog); if (keys.length > 0) { if (!selectedTubingId || !dbCatalog[selectedTubingId]) setSelectedTubingId(keys[0]); } }, [dbCatalog, selectedTubingId]);
-        const selectedTubingData = dbCatalog[selectedTubingId] || {};
-        const stockCodeExists = !!(selectedTubingData.Stock_Code && selectedTubingData.Stock_Code.trim() !== "");
-        useEffect(() => { setUseStock(stockCodeExists); }, [selectedTubingId, stockCodeExists]);
+            // --- SAFE INITIALIZATION (v30.10 Fix) ---
+            // 1. Initialize with empty array to avoid ReferenceError
+            const [autoclavePatterns, setAutoclavePatterns] = useState([]);
+            const [autoclaveInventoryB, setAutoclaveInventoryB] = useState(DEFAULT_AUTOCLAVE_GROUP_B);
+            const [autoclaveManualCart, setAutoclaveManualCart] = useState([]);
 
-        const handleImport = (e) => {
-            const file = e.target.files[0]; if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
+            // 2. Use useEffect to safely populate data from the Defined Constant
+            useEffect(() => {
                 try {
-                    const data = JSON.parse(event.target.result);
-                    if(data.assignments) setAssignments(data.assignments);
-                    if(data.stage_list) setStageList(data.stage_list);
-                    if(data.database) {
-                        if(data.database.components) setDbComponents(data.database.components);
-                        if(data.database.catalog) { const cat = {}; Object.keys(data.database.catalog).forEach(k => cat[parseInt(k)] = data.database.catalog[k]); setDbCatalog(cat); }
-                        if(data.database.diagrams) { const diag = {}; Object.keys(data.database.diagrams).forEach(k => diag[parseInt(k)] = data.database.diagrams[k]); setDbDiagrams(diag); }
-                        if(data.database.bom) { const bom = {}; Object.keys(data.database.bom).forEach(k => bom[parseInt(k)] = data.database.bom[k]); setDbBom(bom); }
-                        if(data.database.autoclave) {
-                             if(data.database.autoclave.patterns) setAutoclavePatterns(data.database.autoclave.patterns);
-                             if(data.database.autoclave.inventory_group_b) setAutoclaveInventoryB(data.database.autoclave.inventory_group_b);
-                             if(data.database.autoclave.manual_cart) setAutoclaveManualCart(data.database.autoclave.manual_cart);
+                    // Use DEFAULT_AUTOCLAVE_PATTERNS_DATA (the correct variable name)
+                    const normalizedPatterns = DEFAULT_AUTOCLAVE_PATTERNS_DATA.map(p => ({
+                        ...p,
+                        zones: p.zones.map(z => ({
+                            ...z,
+                            allowed: [...new Set(z.allowed.map(normalizeName))],
+                            rules: z.rules ? z.rules.map(r => ({ ...r, items: [...new Set(r.items.map(normalizeName))] })) : undefined
+                        }))
+                    }));
+                    setAutoclavePatterns(normalizedPatterns);
+                } catch (err) {
+                    console.error("Pattern Initialization Error:", err);
+                    alert("Critical Error initializing patterns. Check console.");
+                }
+            }, []);
+
+            const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+            const [newStage, setNewStage] = useState("");
+            const [delStage, setDelStage] = useState("(Select)");
+            const [targetStage, setTargetStage] = useState("");
+            const [selectedTubingId, setSelectedTubingId] = useState("");
+            const [useStock, setUseStock] = useState(false);
+            const [qty, setQty] = useState(1);
+
+            useEffect(() => { if (stageList.length > 0 && !targetStage) setTargetStage(stageList[0]); }, [stageList, targetStage]);
+            useEffect(() => { const keys = Object.keys(dbCatalog); if (keys.length > 0) { if (!selectedTubingId || !dbCatalog[selectedTubingId]) setSelectedTubingId(keys[0]); } }, [dbCatalog, selectedTubingId]);
+            const selectedTubingData = dbCatalog[selectedTubingId] || {};
+            const stockCodeExists = !!(selectedTubingData.Stock_Code && selectedTubingData.Stock_Code.trim() !== "");
+            useEffect(() => { setUseStock(stockCodeExists); }, [selectedTubingId, stockCodeExists]);
+
+            const handleImport = (e) => {
+                const file = e.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        if (data.assignments) setAssignments(data.assignments);
+                        if (data.stage_list) setStageList(data.stage_list);
+                        if (data.database) {
+                            if (data.database.components) setDbComponents(data.database.components);
+                            if (data.database.catalog) { const cat = {}; Object.keys(data.database.catalog).forEach(k => cat[parseInt(k)] = data.database.catalog[k]); setDbCatalog(cat); }
+                            if (data.database.diagrams) { const diag = {}; Object.keys(data.database.diagrams).forEach(k => diag[parseInt(k)] = data.database.diagrams[k]); setDbDiagrams(diag); }
+                            if (data.database.bom) { const bom = {}; Object.keys(data.database.bom).forEach(k => bom[parseInt(k)] = data.database.bom[k]); setDbBom(bom); }
+                            if (data.database.autoclave) {
+                                if (data.database.autoclave.patterns) setAutoclavePatterns(data.database.autoclave.patterns);
+                                if (data.database.autoclave.inventory_group_b) setAutoclaveInventoryB(data.database.autoclave.inventory_group_b);
+                                if (data.database.autoclave.manual_cart) setAutoclaveManualCart(data.database.autoclave.manual_cart);
+                            }
                         }
-                    }
-                    alert("✅ File imported successfully!");
-                } catch(err) { alert("Error loading file: " + err); }
+                        alert("✅ File imported successfully!");
+                    } catch (err) { alert("Error loading file: " + err); }
+                };
+                reader.readAsText(file);
             };
-            reader.readAsText(file);
-        };
 
-        const handleExport = () => {
-            const exportData = { version: '30.10', assignments, stage_list: stageList, database: { components: dbComponents, catalog: dbCatalog, diagrams: dbDiagrams, bom: dbBom, autoclave: { patterns: autoclavePatterns, inventory_group_b: autoclaveInventoryB, manual_cart: autoclaveManualCart } } };
-            downloadJson(exportData, "biopharma_prod_config.json");
-        };
+            const handleExport = () => {
+                const exportData = { version: '30.10', assignments, stage_list: stageList, database: { components: dbComponents, catalog: dbCatalog, diagrams: dbDiagrams, bom: dbBom, autoclave: { patterns: autoclavePatterns, inventory_group_b: autoclaveInventoryB, manual_cart: autoclaveManualCart } } };
+                downloadJson(exportData, "biopharma_prod_config.json");
+            };
 
-        const handleResetDefaults = () => {
-            if (window.confirm("⚠️ Reset ALL data?")) {
-                setDbComponents(DEFAULT_COMPONENTS); setDbCatalog(DEFAULT_CATALOG); setDbDiagrams(DEFAULT_DIAGRAMS); setDbBom(DEFAULT_BOM); setStageList(DEFAULT_STAGES); setAssignments([]);
-                // Re-initialize patterns safely using the CORRECT variable name
-                const normalizedPatterns = DEFAULT_AUTOCLAVE_PATTERNS_DATA.map(p => ({
-                    ...p, 
-                    zones: p.zones.map(z => ({
-                        ...z, 
-                        allowed: [...new Set(z.allowed.map(normalizeName))], 
-                        rules: z.rules ? z.rules.map(r => ({...r, items: [...new Set(r.items.map(normalizeName))] })) : undefined
-                    }))
-                }));
-                setAutoclavePatterns(normalizedPatterns);
-                setAutoclaveInventoryB(DEFAULT_AUTOCLAVE_GROUP_B); setAutoclaveManualCart([]); setNewStage(""); setQty(1); alert("✅ Reset complete.");
-            }
-        };
+            const handleResetDefaults = () => {
+                if (window.confirm("⚠️ Reset ALL data?")) {
+                    setDbComponents(DEFAULT_COMPONENTS); setDbCatalog(DEFAULT_CATALOG); setDbDiagrams(DEFAULT_DIAGRAMS); setDbBom(DEFAULT_BOM); setStageList(DEFAULT_STAGES); setAssignments([]);
+                    // Re-initialize patterns safely using the CORRECT variable name
+                    const normalizedPatterns = DEFAULT_AUTOCLAVE_PATTERNS_DATA.map(p => ({
+                        ...p,
+                        zones: p.zones.map(z => ({
+                            ...z,
+                            allowed: [...new Set(z.allowed.map(normalizeName))],
+                            rules: z.rules ? z.rules.map(r => ({ ...r, items: [...new Set(r.items.map(normalizeName))] })) : undefined
+                        }))
+                    }));
+                    setAutoclavePatterns(normalizedPatterns);
+                    setAutoclaveInventoryB(DEFAULT_AUTOCLAVE_GROUP_B); setAutoclaveManualCart([]); setNewStage(""); setQty(1); alert("✅ Reset complete.");
+                }
+            };
 
-        const handleAddStage = () => { if (newStage && !stageList.includes(newStage)) { setStageList([...stageList, newStage]); setNewStage(""); } };
-        const handleRemoveStage = () => { if (delStage && delStage !== "(Select)") { setStageList(stageList.filter(s => s !== delStage)); setAssignments(assignments.filter(a => a.Stage !== delStage)); setDelStage("(Select)"); } };
-        const handleAddAssignment = () => { setAssignments([...assignments, { "Stage": targetStage, "SOP No.": parseInt(selectedTubingId), "Name": selectedTubingData.Name, "Qty": parseInt(qty), "Is_Stock": useStock, "Material_Code": useStock ? selectedTubingData.Stock_Code : null }]); };
-        const handleUndoAssignment = () => { const newAss = [...assignments]; newAss.pop(); setAssignments(newAss); };
+            const handleAddStage = () => { if (newStage && !stageList.includes(newStage)) { setStageList([...stageList, newStage]); setNewStage(""); } };
+            const handleRemoveStage = () => { if (delStage && delStage !== "(Select)") { setStageList(stageList.filter(s => s !== delStage)); setAssignments(assignments.filter(a => a.Stage !== delStage)); setDelStage("(Select)"); } };
+            const handleAddAssignment = () => { setAssignments([...assignments, { "Stage": targetStage, "SOP No.": parseInt(selectedTubingId), "Name": selectedTubingData.Name, "Qty": parseInt(qty), "Is_Stock": useStock, "Material_Code": useStock ? selectedTubingData.Stock_Code : null }]); };
+            const handleUndoAssignment = () => { const newAss = [...assignments]; newAss.pop(); setAssignments(newAss); };
 
-        return (
-            <div className="flex min-h-screen bg-white">
-                <div className={`flex-shrink-0 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-0 p-0 overflow-hidden'}`}>
-                    <div className="bg-gray-100 h-full p-4 border-r relative">
-                        {isSidebarOpen && (<>
-                            <h2 className="font-bold text-lg mb-4">📂 File System</h2>
-                            <button className="w-full bg-white border border-gray-300 rounded py-1 px-3 mb-2 text-sm hover:bg-gray-50" onClick={handleExport}>📥 Export</button>
-                            <div className="mb-4"><label className="block text-sm font-medium mb-1">📤 Import</label><input type="file" accept=".json" onChange={handleImport} className="text-xs w-full"/></div>
-                            <div className="my-4 border-t border-gray-300 pt-4"><button className="w-full bg-red-50 border border-red-300 text-red-600 rounded py-2 px-3 text-sm hover:bg-red-100 font-bold flex items-center justify-center gap-2" onClick={handleResetDefaults}><i className="fas fa-undo"></i> Reset Defaults</button></div>
-                        </>)}
+            return (
+                <div className="flex min-h-screen bg-white">
+                    <div className={`flex-shrink-0 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-0 p-0 overflow-hidden'}`}>
+                        <div className="bg-gray-100 h-full p-4 border-r relative">
+                            {isSidebarOpen && (<>
+                                <h2 className="font-bold text-lg mb-4">📂 File System</h2>
+                                <button className="w-full bg-white border border-gray-300 rounded py-1 px-3 mb-2 text-sm hover:bg-gray-50" onClick={handleExport}>📥 Export</button>
+                                <div className="mb-4"><label className="block text-sm font-medium mb-1">📤 Import</label><input type="file" accept=".json" onChange={handleImport} className="text-xs w-full" /></div>
+                                <div className="my-4 border-t border-gray-300 pt-4"><button className="w-full bg-red-50 border border-red-300 text-red-600 rounded py-2 px-3 text-sm hover:bg-red-100 font-bold flex items-center justify-center gap-2" onClick={handleResetDefaults}><i className="fas fa-undo"></i> Reset Defaults</button></div>
+                            </>)}
+                        </div>
                     </div>
-                </div>
-                <div className={`fixed top-0 z-20 transition-all duration-300 h-full flex items-start ${isSidebarOpen ? 'left-64' : 'left-0'}`}>
-                    <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="mt-6 p-2 bg-red-500 text-white rounded-r-lg shadow-lg hover:bg-red-600 transition-colors"><i className={`fas fa-chevron-${isSidebarOpen ? 'left' : 'right'}`}></i></button>
-                </div>
-                <div className="flex-1 p-6 overflow-y-auto">
-                    <h1 className="text-3xl font-bold mb-2">🧬 Biopharma Production Tool v30.10</h1>
-                    <div className="flex border-b mb-6 overflow-x-auto">
-                        <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab1' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab1')}>🏗️ Plan & Config</button>
-                        <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab2' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab2')}>📋 Picking List</button>
-                        <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab3' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab3')}>📦 Assembly Guide</button>
-                        <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab5' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab5')}>🌡️ Autoclave Calc</button>
-                        <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab4' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab4')}>⚙️ Database</button>
+                    <div className={`fixed top-0 z-20 transition-all duration-300 h-full flex items-start ${isSidebarOpen ? 'left-64' : 'left-0'}`}>
+                        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="mt-6 p-2 bg-red-500 text-white rounded-r-lg shadow-lg hover:bg-red-600 transition-colors"><i className={`fas fa-chevron-${isSidebarOpen ? 'left' : 'right'}`}></i></button>
                     </div>
-                    <div className="min-h-[500px]">
-                        {activeTab === 'tab1' && (<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="md:col-span-1 border p-4 rounded bg-gray-50">
-                                <h3 className="text-xl font-bold mb-4">Stage Manager</h3>
-                                <div className="mb-4 space-y-2">
-                                    <div className="flex gap-2"><input className="flex-1 border p-2 text-sm rounded" placeholder="New Stage" value={newStage} onChange={e => setNewStage(e.target.value)} /><button className="bg-blue-500 text-white px-3 text-sm rounded" onClick={handleAddStage}>+</button></div>
-                                    <div className="flex gap-2"><select className="flex-1 border p-2 text-sm rounded" value={delStage} onChange={e => setDelStage(e.target.value)}><option value="(Select)">(Select)</option>{stageList.map(s => <option key={s} value={s}>{s}</option>)}</select><button className="bg-red-500 text-white px-3 text-sm rounded" onClick={handleRemoveStage} disabled={delStage === "(Select)"}>-</button></div>
+                    <div className="flex-1 p-6 overflow-y-auto">
+                        <h1 className="text-3xl font-bold mb-2">🧬 Biopharma Production Tool v30.10</h1>
+                        <div className="flex border-b mb-6 overflow-x-auto">
+                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab1' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab1')}>🏗️ Plan & Config</button>
+                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab2' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab2')}>📋 Picking List</button>
+                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab3' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab3')}>📦 Assembly Guide</button>
+                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab5' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab5')}>🌡️ Autoclave Calc</button>
+                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab4' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab4')}>⚙️ Database</button>
+                        </div>
+                        <div className="min-h-[500px]">
+                            {activeTab === 'tab1' && (<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="md:col-span-1 border p-4 rounded bg-gray-50">
+                                    <h3 className="text-xl font-bold mb-4">Stage Manager</h3>
+                                    <div className="mb-4 space-y-2">
+                                        <div className="flex gap-2"><input className="flex-1 border p-2 text-sm rounded" placeholder="New Stage" value={newStage} onChange={e => setNewStage(e.target.value)} /><button className="bg-blue-500 text-white px-3 text-sm rounded" onClick={handleAddStage}>+</button></div>
+                                        <div className="flex gap-2"><select className="flex-1 border p-2 text-sm rounded" value={delStage} onChange={e => setDelStage(e.target.value)}><option value="(Select)">(Select)</option>{stageList.map(s => <option key={s} value={s}>{s}</option>)}</select><button className="bg-red-500 text-white px-3 text-sm rounded" onClick={handleRemoveStage} disabled={delStage === "(Select)"}>-</button></div>
+                                    </div>
+                                    <h3 className="text-xl font-bold mb-4">Assignments</h3>
+                                    <div className="flex flex-col gap-4">
+                                        <div><label className="block text-sm font-medium mb-1">Stage</label><select className="w-full border p-2 rounded" value={targetStage} onChange={e => setTargetStage(e.target.value)}>{stageList.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                                        <div><label className="block text-sm font-medium mb-1">Tubing</label><select className="w-full border p-2 rounded" value={selectedTubingId} onChange={e => setSelectedTubingId(e.target.value)}>{Object.entries(dbCatalog).map(([k, v]) => (<option key={k} value={k}>No. {k} - {v.Name}</option>))}</select></div>
+                                        <div className="flex items-center gap-2"><input type="checkbox" id="useStock" checked={useStock} onChange={e => setUseStock(e.target.checked)} /><label htmlFor="useStock" className="text-sm font-medium">Use Stock?</label></div>
+                                        <div><label className="block text-sm font-medium mb-1">Qty</label><input type="number" className="w-full border p-2 rounded" min="1" value={qty} onChange={e => setQty(e.target.value)} /></div>
+                                        <button className="st-btn w-full disabled:opacity-50" onClick={handleAddAssignment} disabled={useStock && !stockCodeExists}>Add</button>
+                                    </div>
                                 </div>
-                                <h3 className="text-xl font-bold mb-4">Assignments</h3>
-                                <div className="flex flex-col gap-4">
-                                    <div><label className="block text-sm font-medium mb-1">Stage</label><select className="w-full border p-2 rounded" value={targetStage} onChange={e => setTargetStage(e.target.value)}>{stageList.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-                                    <div><label className="block text-sm font-medium mb-1">Tubing</label><select className="w-full border p-2 rounded" value={selectedTubingId} onChange={e => setSelectedTubingId(e.target.value)}>{Object.entries(dbCatalog).map(([k, v]) => (<option key={k} value={k}>No. {k} - {v.Name}</option>))}</select></div>
-                                    <div className="flex items-center gap-2"><input type="checkbox" id="useStock" checked={useStock} onChange={e => setUseStock(e.target.checked)} /><label htmlFor="useStock" className="text-sm font-medium">Use Stock?</label></div>
-                                    <div><label className="block text-sm font-medium mb-1">Qty</label><input type="number" className="w-full border p-2 rounded" min="1" value={qty} onChange={e => setQty(e.target.value)} /></div>
-                                    <button className="st-btn w-full disabled:opacity-50" onClick={handleAddAssignment} disabled={useStock && !stockCodeExists}>Add</button>
+                                <div className="md:col-span-2">
+                                    <h3 className="text-xl font-bold mb-4">Current Assignments</h3>
+                                    {assignments.length === 0 ? <div className="bg-blue-50 p-4 rounded text-blue-700">No assignments yet.</div> : (<div>{[...new Set(assignments.map(a => a.Stage))].map(stage => (<div key={stage} className="mb-6"><div className="font-bold text-lg mb-2 text-gray-700">📍 {stage}</div><table className="w-full border-collapse text-sm"><thead><tr className="bg-gray-100 border-b"><th className="p-2 text-left">SOP No.</th><th className="p-2 text-left">Name</th><th className="p-2 text-left">Qty</th><th className="p-2 text-left">Is Stock</th></tr></thead><tbody>{assignments.filter(a => a.Stage === stage).map((row, idx) => (<tr key={idx} className="border-b"><td className="p-2">{row['SOP No.']}</td><td className="p-2">{row.Name}</td><td className="p-2">{row.Qty}</td><td className="p-2">{row.Is_Stock ? "Yes" : "No"}</td></tr>))}</tbody></table></div>))}<button className="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm" onClick={handleUndoAssignment}>Undo Last</button></div>)}
                                 </div>
-                            </div>
-                            <div className="md:col-span-2">
-                                <h3 className="text-xl font-bold mb-4">Current Assignments</h3>
-                                {assignments.length === 0 ? <div className="bg-blue-50 p-4 rounded text-blue-700">No assignments yet.</div> : (<div>{[...new Set(assignments.map(a => a.Stage))].map(stage => (<div key={stage} className="mb-6"><div className="font-bold text-lg mb-2 text-gray-700">📍 {stage}</div><table className="w-full border-collapse text-sm"><thead><tr className="bg-gray-100 border-b"><th className="p-2 text-left">SOP No.</th><th className="p-2 text-left">Name</th><th className="p-2 text-left">Qty</th><th className="p-2 text-left">Is Stock</th></tr></thead><tbody>{assignments.filter(a => a.Stage === stage).map((row, idx) => (<tr key={idx} className="border-b"><td className="p-2">{row['SOP No.']}</td><td className="p-2">{row.Name}</td><td className="p-2">{row.Qty}</td><td className="p-2">{row.Is_Stock ? "Yes" : "No"}</td></tr>))}</tbody></table></div>))}<button className="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50 text-sm" onClick={handleUndoAssignment}>Undo Last</button></div>)}
-                            </div>
-                        </div>)}
-                        {activeTab === 'tab2' && (<div><div dangerouslySetInnerHTML={{__html: generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog)}} /><div className="mt-4 text-right"><button className="st-btn" onClick={() => downloadHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog), "Picking_List.html")}>📥 Download</button></div></div>)}
-                        {activeTab === 'tab3' && (<div><div dangerouslySetInnerHTML={{__html: generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams)}} /><div className="mt-4 text-right"><button className="st-btn" onClick={() => downloadHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams), "Assembly_Guide.html")}>📥 Download</button></div></div>)}
-                        {activeTab === 'tab5' && <AutoclaveModule plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
-                        {activeTab === 'tab4' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
+                            </div>)}
+                            {activeTab === 'tab2' && (<div><div dangerouslySetInnerHTML={{ __html: generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog) }} /><div className="mt-4 text-right"><button className="st-btn" onClick={() => downloadHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog), "Picking_List.html")}>📥 Download</button></div></div>)}
+                            {activeTab === 'tab3' && (<div><div dangerouslySetInnerHTML={{ __html: generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams) }} /><div className="mt-4 text-right"><button className="st-btn" onClick={() => downloadHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams), "Assembly_Guide.html")}>📥 Download</button></div></div>)}
+                            {activeTab === 'tab5' && <AutoclaveModule plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
+                            {activeTab === 'tab4' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
+                        </div>
                     </div>
                 </div>
-            </div>
-        );
-    }
+            );
+        }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-</script>
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 
 </body>
+
 </html>
