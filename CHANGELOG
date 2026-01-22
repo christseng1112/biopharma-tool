@@ -1,90 +1,43 @@
 Changelog
 
-All notable changes to the Biopharma Production Integration Tool will be documented in this file.
+[v30.8] - 2025-05-20 (Stable Release)
 
-The format is based on Keep a Changelog,
-and this project adheres to Semantic Versioning.
+🐛 Bug Fixes (錯誤修復)
 
-[v30.6] - 2025-05-20 (Latest Stable)
+修復報表下載功能 (Fixed Report Download)
 
-Fixed
+問題: 點擊 "Download Picking List" 或 "Download Assembly Guide" 時無反應或報錯。
 
-Critical Reference Error: Fixed ReferenceError: App is not defined by correcting component scope and syntax structure in the un-minified code.
+原因: 用於定義報表樣式的全域變數 CSS_STRING 在之前的代碼優化過程中意外遺失，導致 ReferenceError。
 
-Robust Name Normalization: Updated the normalizeName regex logic to aggressively ignore whitespace around quotation marks.
+修正: 已補回完整的 CSS_STRING 定義，現在所有 HTML 報表皆可正常生成與下載。
 
-Scenario: 1/2” C-Flex and 1/2”C-Flex are now treated as identical, preventing "Unassignable" errors caused by minor typo differences between Catalog and Patterns.
+修復應用程式啟動崩潰 (Fixed App Initialization Crash)
 
-Global Error Handler: Added window.onerror to capture and alert runtime errors, preventing "White Screen of Death" silent failures.
+問題: 在部分瀏覽器環境下，網頁載入時出現白畫面，控制台顯示 ReferenceError: App is not defined。
 
-[v30.3] - 2025-05-20
+原因: DEFAULT_AUTOCLAVE_PATTERNS 的初始化邏輯中包含直接執行的 .map() 函數。若資料結構有微小異常，會導致 JavaScript 在解析階段中斷，從而阻止了 React App 組件的定義。
 
-Fixed
+修正:
 
-Strict Data Synchronization: Performed a character-by-character sync between DEFAULT_CATALOG and DEFAULT_AUTOCLAVE_PATTERNS.
+將預設資料變數改為純靜態 JSON 陣列 (_RAW 數據)，移除所有啟動時的運算。
 
-Specific Typo Fixes:
+將資料清洗與標準化邏輯 (Normalization Logic) 移至 App 組件的 useEffect 中延遲執行。
 
-Fixed SOP No.6 (1/2”C- Flex-1/2”) incorrectly defaulting to Pattern 1 due to an extra space in Pattern 5's rule.
+這確保了應用程式能始終成功掛載 (Mount)，即使資料有誤也能優雅地處理，而非直接崩潰。
 
-Fixed SOP No.3 (3/8”Silicone) appearing as unassignable due to a missing space in the catalog vs pattern.
+⚡ Performance & Stability (效能與穩定性)
 
-[v30.0] - 2025-05-20
+全域錯誤攔截 (Global Error Handler)
 
-Added
+新增了 window.onerror 監聽器。若發生未預期的錯誤，系統現在會彈出視窗顯示具體的錯誤訊息與行號，而非靜默失敗，大幅提升除錯效率。
 
-Backtracking Algorithm (Optimizer): Replaced the simple Greedy algorithm with a Backtracking with Branch & Bound strategy.
+🔄 Unchanged Core Features (保留核心功能)
 
-Benefit: The system now actively searches for the combination that yields the minimum total sterilization cycles, rather than just filling the first available slot.
+演算法: 保留了 v30.0 引入的 回溯搜尋演算法 (Backtracking Algorithm)，確保計算出最少的滅菌循環次數。
 
-Fallback: Includes a performance threshold (MAX_ITERATIONS) to fallback to Greedy mode for extremely large datasets to prevent browser freezing.
+資料完整性: 保留了 v30.6 的嚴格命名對齊修正（如修復 3/8” Silicone 的空格問題）。
 
-[v29.2] - 2025-05-19
+功能: 保留了「Include Stock (包含庫存品)」選項與手動清單防遺失機制。
 
-Fixed
-
-Data mismatch (Unassignable Items): Fixed issues where 3/8" C-Flex items were rejected by the autoclave calculator due to mismatching spaces in the naming convention (e.g., Type Z removal leftovers).
-
-[v29.1] - 2025-05-19
-
-Fixed
-
-React Key Duplication: Fixed console errors caused by duplicate keys in dropdown menus.
-
-Cause: Normalizing names (removing "Type X") resulted in duplicate entries for React to render.
-
-Fix: Implemented Set based deduplication for all dropdown options.
-
-[v29.0] - 2025-05-19
-
-Changed
-
-State Lifting: Lifted manualCart state from AutoclaveModule to the main App component.
-
-Benefit: Users no longer lose their manually added items (forceps, valves, etc.) when switching between tabs (e.g., from Calc back to Planner).
-
-Performance: Wrapped calculation logic in useMemo to prevent unnecessary re-renders.
-
-Added
-
-Include Stock Option: Added a checkbox to optionally allow "Stock" items from the Planner to be imported into the Sterilization queue (default is strictly Custom Assembly items only).
-
-[v28.0] - 2025-05-18
-
-Added
-
-Full Pattern Restoration: Restored all 10 autoclave patterns (Patterns 1-10) which were partially missing in the initial merge.
-
-Complex Constraints: Ported the "Advanced Rules" logic (e.g., "Max 2 Scissors per zone") from the legacy v13 calculator.
-
-Group B Restoration: Restored the full list of auxiliary equipment (Group B).
-
-[v27.0] - 2025-05-17 (Initial Merge)
-
-Added
-
-Integration: Successfully merged Tubing Planner v26.0 and Autoclave Calculator v13.0 into a single HTML file.
-
-Unified Database: Established data flow where Planner assignments automatically populate the Autoclave queue.
-
-File System: Unified JSON Export/Import system for both tools.
+此版本建議作為穩定版 (Stable Build) 部署。
