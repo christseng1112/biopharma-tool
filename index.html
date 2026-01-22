@@ -605,6 +605,45 @@
             const stockCodeExists = !!(selectedTubingData.Stock_Code && selectedTubingData.Stock_Code.trim() !== "");
             useEffect(() => { setUseStock(stockCodeExists); }, [selectedTubingId, stockCodeExists]);
 
+            // --- AUTO SAVE ---
+            const AUTOSAVE_KEY = "BIOPHARMA_AUTOSAVE_V30_10";
+            const [autoSaveStatus, setAutoSaveStatus] = useState("");
+
+            // Load from AutoSave on Mount
+            useEffect(() => {
+                const saved = localStorage.getItem(AUTOSAVE_KEY);
+                if (saved) {
+                    try {
+                        const data = JSON.parse(saved);
+                        if (data.assignments) setAssignments(data.assignments);
+                        if (data.stage_list) setStageList(data.stage_list);
+                        if (data.database) {
+                            if (data.database.components) setDbComponents(data.database.components);
+                            if (data.database.catalog) { const cat = {}; Object.keys(data.database.catalog).forEach(k => cat[parseInt(k)] = data.database.catalog[k]); setDbCatalog(cat); }
+                            if (data.database.diagrams) { const diag = {}; Object.keys(data.database.diagrams).forEach(k => diag[parseInt(k)] = data.database.diagrams[k]); setDbDiagrams(diag); }
+                            if (data.database.bom) { const bom = {}; Object.keys(data.database.bom).forEach(k => bom[parseInt(k)] = data.database.bom[k]); setDbBom(bom); }
+                            if (data.database.autoclave) {
+                                if (data.database.autoclave.patterns) setAutoclavePatterns(data.database.autoclave.patterns);
+                                if (data.database.autoclave.inventory_group_b) setAutoclaveInventoryB(data.database.autoclave.inventory_group_b);
+                                if (data.database.autoclave.manual_cart) setAutoclaveManualCart(data.database.autoclave.manual_cart);
+                            }
+                        }
+                        console.log("Loaded from Autosave");
+                    } catch (e) { console.error("Autosave load error", e); }
+                }
+            }, []);
+
+            // Save to AutoSave on Change
+            useEffect(() => {
+                const timer = setTimeout(() => {
+                    const exportData = { version: '30.10', assignments, stage_list: stageList, database: { components: dbComponents, catalog: dbCatalog, diagrams: dbDiagrams, bom: dbBom, autoclave: { patterns: autoclavePatterns, inventory_group_b: autoclaveInventoryB, manual_cart: autoclaveManualCart } } };
+                    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(exportData));
+                    setAutoSaveStatus("Auto-saved");
+                    setTimeout(() => setAutoSaveStatus(""), 3000);
+                }, 1000);
+                return () => clearTimeout(timer);
+            }, [assignments, stageList, dbComponents, dbCatalog, dbDiagrams, dbBom, autoclavePatterns, autoclaveInventoryB, autoclaveManualCart]);
+
             const handleImport = (e) => {
                 const file = e.target.files[0]; if (!file) return;
                 const reader = new FileReader();
@@ -636,7 +675,8 @@
             };
 
             const handleResetDefaults = () => {
-                if (window.confirm("⚠️ Reset ALL data?")) {
+                if (window.confirm("⚠️ Reset ALL data? This will also clear your Auto-Save.")) {
+                    localStorage.removeItem(AUTOSAVE_KEY);
                     setDbComponents(DEFAULT_COMPONENTS); setDbCatalog(DEFAULT_CATALOG); setDbDiagrams(DEFAULT_DIAGRAMS); setDbBom(DEFAULT_BOM); setStageList(DEFAULT_STAGES); setAssignments([]);
                     // Re-initialize patterns safely using the CORRECT variable name
                     const normalizedPatterns = DEFAULT_AUTOCLAVE_PATTERNS_DATA.map(p => ({
@@ -673,7 +713,10 @@
                         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="mt-6 p-2 bg-red-500 text-white rounded-r-lg shadow-lg hover:bg-red-600 transition-colors"><i className={`fas fa-chevron-${isSidebarOpen ? 'left' : 'right'}`}></i></button>
                     </div>
                     <div className="flex-1 p-6 overflow-y-auto">
-                        <h1 className="text-3xl font-bold mb-2">🧬 Biopharma Production Tool v30.10</h1>
+                        <h1 className="text-3xl font-bold mb-2 flex items-center gap-4">
+                            <span>🧬 Biopharma Production Tool v30.10</span>
+                            {autoSaveStatus && <span className="text-sm font-normal text-green-700 bg-green-100 px-3 py-1 rounded-full shadow-sm border border-green-300 animate-pulse"><i className="fas fa-save"></i> {autoSaveStatus}</span>}
+                        </h1>
                         <div className="flex border-b mb-6 overflow-x-auto">
                             <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab1' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab1')}>🏗️ Plan & Config</button>
                             <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab2' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab2')}>📋 Picking List</button>
