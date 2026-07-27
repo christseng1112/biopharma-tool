@@ -107,7 +107,12 @@ export const runGreedySimulation = (inventory, patterns) => {
 
 /** How the returned schedule was arrived at — surfaced so the number is not over-trusted. */
 export const QUALITY = {
-    /** Exhaustive search completed: no shorter schedule exists. */
+    /**
+     * Exhaustive search over pattern sequences completed without hitting the
+     * iteration budget: no shorter sequence exists *given this packing rule*.
+     * The packing within a cycle is simulateLoad's fixed greedy fill, so this
+     * is not a claim that no shorter schedule exists under any packing.
+     */
     OPTIMAL: 'optimal',
     /** Greedy result only — search was skipped or hit its iteration budget. */
     HEURISTIC: 'heuristic',

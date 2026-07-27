@@ -205,6 +205,64 @@ verify:offline 在沒有瀏覽器的環境會失敗
          npm audit 為 0 vulnerabilities，109 項測試無須改動即全數通過。
          未採用 npm audit fix --force 建議的 vitest@4（非必要的破壞性升級）。
 
+🔍 第二輪全面審視的修正
+
+本輪重新獨立檢視全專案並逐一實際執行驗證。預設資料集本身乾淨，但以下缺陷皆可
+經由資料庫編輯器或匯入的設定檔觸發，其中兩個是靜默的。
+
+1. BOM 為空的品項會從裝配工單整列消失（靜默）
+
+   問題: 表格列是在 jsonBom.forEach 內產生，BOM 為空陣列時迴圈一次都不跑，該品項
+         完全不出現在工單上。程式中已有 rowSpan 的空 BOM 分支，但永遠走不到。
+         LogicEditor 儲存時會濾掉 Count <= 0 的列，很容易產生空 BOM。
+         後果：需要組裝的管組不會出現在工單，現場不會組它，也沒有任何提示。
+   修正: 空 BOM 仍輸出一列，並標示「⚠️ 此品項尚未定義 BOM」。
+
+2. 同一料號混用管材與配件會加出無意義的數字（靜默）
+
+   問題: 每個料號只有單一 Total，卻依該列有無 Len 決定累加的是長度(cm)或個數(ea)，
+         單位又由「任一列是管材就算 cm」決定。實測 30cm + 1個 顯示為「31 cm」。
+   修正: 長度與個數分開累計，兩者皆非零時各自呈現並標示需分別領取。
+
+3. 刪除製程階段會靜默連同其下所有 Assignment 一起刪除
+
+   問題: 沒有任何確認，也沒有復原機制。
+   修正: 該階段有 assignment 時先以 confirm 說明將刪除幾筆。
+
+4. Catalog 刪除只 commit 一半（本專案前一輪引入）
+
+   問題: catalog 移除是本地暫存，BOM 與示意圖卻立即寫入並被自動存檔。未按
+         Save Changes 就會留下有 catalog、無 BOM 的孤兒 —— 接著正好踩中第 1 項。
+   修正: 待刪除清單改為與 catalog 一起在 Save Changes 時提交，並於畫面顯示待刪除項。
+
+5. Zone capacity 接受 NaN
+
+   問題: 清空欄位得到 NaN，該 zone 之後完全不裝載任何東西。與先前修正的數量欄位
+         同類，當時漏了這一處。（品項會落入 unscheduled 並標示 incomplete，
+         不是靜默，但使用者看不出原因。）
+   修正: 沿用既有的輸入 guard，空值視為 0，無效輸入不寫入 state。
+
+6. validateConfig 未驗證 zone rules
+
+   問題: 缺少 max 的 rule 會讓 ruleCapFor 回傳 NaN，該品項永遠裝不進去。
+   修正: 補驗 rules 為陣列、每個 rule 的 items 為陣列且 max 為有限數字，
+         並一併驗證 zone.capacity 為數字。
+
+7. 「最佳解 (Optimal)」用詞過強
+
+   回溯搜尋窮舉的是 Pattern 的排列組合，循環內部的裝填是 simulateLoad 的固定貪婪法。
+   因此證明的是「在此裝填規則下沒有更短的 Pattern 序列」，而非「不存在更短的排程」。
+   tooltip 與程式註解均改為精確描述。
+
+🧹 一併處理
+
+- assignment id 由 Date.now() 改為 randomUUID：同毫秒連續新增會產生重複 id，
+  React key 重複且刪除其一會同時刪掉兩筆。
+- 新增製程階段時 trim 空白，避免「 Harvest」與「Harvest」成為兩個階段。
+- publish.mjs 與 verify-offline.mjs 的外部參照偵測補上 CSS url()、@import
+  與單引號屬性 —— 原本只比對雙引號的 src/href，CSS 可繞過。
+- CatalogEditor 加上提示：Zone 以名稱比對品項，改名後需同步更新 Zone 允許清單。
+
 📌 Known Issues
 
 - 預設資料中 `1” Braided Silicone Tubing Set` 未被任何 Pattern 的 Zone 收錄，

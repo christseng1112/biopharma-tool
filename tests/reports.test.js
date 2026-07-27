@@ -218,3 +218,68 @@ describe('reports carry provenance', () => {
         expect(html.indexOf('provenance')).toBeLessThan(html.indexOf('custom-table'));
     });
 });
+
+describe('regression: silent omission and unit mixing', () => {
+    // A set whose BOM has no rows used to produce no table row at all, so the
+    // item vanished from the work order with nothing to indicate it was missing.
+    it('emits a row for an assembly whose BOM is empty', () => {
+        const html = generateAssemblyGuideHTML(
+            ['Harvest'],
+            [task({ 'SOP No.': 7, Qty: 5, Name: 'Empty BOM Set' })],
+            { 7: [] }, components, { 7: 'A-[B]-C' }
+        );
+        expect(html).toContain('Empty BOM Set');
+        expect(html).toContain('No. 7');
+        expect(html).toContain('尚未定義 BOM');
+    });
+
+    it('still shows the set quantity and diagram on an empty-BOM row', () => {
+        const html = generateAssemblyGuideHTML(
+            ['Harvest'],
+            [task({ 'SOP No.': 7, Qty: 5, Name: 'Empty BOM Set' })],
+            { 7: [] }, components, { 7: 'DIAGRAM-HERE' }
+        );
+        expect(html).toContain('DIAGRAM-HERE');
+        expect(html).toContain('>5<');
+    });
+
+    it('does not drop other rows when one assembly has an empty BOM', () => {
+        const html = generateAssemblyGuideHTML(
+            ['Harvest'],
+            [task({ 'SOP No.': 7, Name: 'Empty BOM Set' }), task({ 'SOP No.': 1, Name: 'Set One' })],
+            { ...bom, 7: [] }, components, {}
+        );
+        expect(html).toContain('Empty BOM Set');
+        expect(html).toContain('Set One');
+        expect(html).toContain('C-Flex tubing');
+    });
+
+    // One code used with a length in one BOM and as a countable piece in
+    // another used to add centimetres to pieces: 30 cm + 1 ea printed "31 cm".
+    it('never adds centimetres to piece counts', () => {
+        const html = generatePickingListHTML(
+            [task({ 'SOP No.': 1, Qty: 1 }), task({ 'SOP No.': 2, Qty: 1 })],
+            { 1: [{ Code: 'X1', Len: 30, Count: 1 }], 2: [{ Code: 'X1', Count: 1 }] },
+            { X1: { Name: 'Tube-or-piece', Unit: 'cm' } }, catalog
+        );
+        expect(html).not.toMatch(/\b31\b/);
+        expect(html).toContain('30 cm');
+        expect(html).toContain('1 ea');
+    });
+
+    it('flags a code measured both ways', () => {
+        const html = generatePickingListHTML(
+            [task({ 'SOP No.': 1, Qty: 1 }), task({ 'SOP No.': 2, Qty: 1 })],
+            { 1: [{ Code: 'X1', Len: 30, Count: 1 }], 2: [{ Code: 'X1', Count: 1 }] },
+            { X1: { Name: 'Tube-or-piece', Unit: 'cm' } }, catalog
+        );
+        expect(html).toContain('同時以管材與配件計量');
+    });
+
+    it('does not flag codes measured only one way', () => {
+        const html = generatePickingListHTML([task({ Qty: 3 })], bom, components, catalog);
+        expect(html).not.toContain('同時以管材與配件計量');
+        expect(html).toContain('180 cm');
+        expect(html).toContain('3 ea');
+    });
+});

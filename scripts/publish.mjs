@@ -17,7 +17,15 @@ if (!existsSync(built)) {
 
 let html = readFileSync(built, 'utf8');
 
-const external = [...html.matchAll(/(?:src|href)="(https?:)?\/\/[^"]+"/g)].map(m => m[0]);
+// Attribute references, CSS url()/@import, and single-quoted variants all
+// reach the network. Checking only double-quoted src/href left CSS able to
+// pull in a remote font or image without the guard noticing.
+const external = [
+    ...html.matchAll(/(?:src|href)\s*=\s*["'](?:https?:)?\/\/[^"']+["']/gi),
+    ...html.matchAll(/url\(\s*["']?(?:https?:)?\/\/[^)]+\)/gi),
+    ...html.matchAll(/@import\s+(?:url\()?\s*["'](?:https?:)?\/\/[^"']+["']/gi)
+].map(m => m[0]);
+
 if (external.length > 0) {
     console.error('publish: build still references external resources, refusing to publish:');
     external.forEach(e => console.error('  ' + e));

@@ -146,3 +146,39 @@ describe('validateConfig — entry shapes', () => {
         expect(validateConfig(defaultPayload()).errors).toEqual([]);
     });
 });
+
+describe('validateConfig — zone rules', () => {
+    const zone = (over) => ({
+        database: { autoclave: { patterns: [{ id: 1, zones: [{ name: 'Z', capacity: 6, allowed: ['W'], ...over }] }] } }
+    });
+    const rejects = (data, match) => {
+        const r = validateConfig(data);
+        expect(r.ok).toBe(false);
+        expect(r.errors.join(' ')).toMatch(match);
+    };
+
+    // A rule without `max` makes ruleCapFor return NaN, and the zone then
+    // refuses the item forever — a wrong schedule rather than a loud error.
+    it('a rule without max', () => rejects(zone({ rules: [{ items: ['W'] }] }), /rules\[0\]\.max/));
+    it('a rule with a non-numeric max', () => rejects(zone({ rules: [{ items: ['W'], max: '2' }] }), /rules\[0\]\.max/));
+    it('a rule without items', () => rejects(zone({ rules: [{ max: 2 }] }), /rules\[0\]\.items/));
+    it('a rule that is not an object', () => rejects(zone({ rules: ['W'] }), /rules\[0\] 必須是物件/));
+    it('rules that is not an array', () => rejects(zone({ rules: {} }), /rules 必須是陣列/));
+    it('a non-numeric capacity', () => rejects(zone({ capacity: 'six' }), /capacity 必須是數字/));
+
+    it('accepts a well-formed rule', () => {
+        expect(validateConfig(zone({ rules: [{ items: ['W'], max: 2 }] })).errors).toEqual([]);
+    });
+
+    it('accepts a zone with no rules at all', () => {
+        expect(validateConfig(zone({})).errors).toEqual([]);
+    });
+
+    it('accepts max of 0', () => {
+        expect(validateConfig(zone({ rules: [{ items: ['W'], max: 0 }] })).errors).toEqual([]);
+    });
+
+    it('still accepts the shipped default patterns', () => {
+        expect(validateConfig(defaultPayload()).errors).toEqual([]);
+    });
+});
