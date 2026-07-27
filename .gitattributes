@@ -1,8 +1,12 @@
-# index.html is distributed as-is to Windows workstations; keep CRLF in the
-# working tree so the file opens cleanly there and diffs stay minimal.
-index.html text eol=crlf
-
+# Later rules win, so generic patterns come first and exceptions last.
+*.html text eol=lf
+*.css text eol=lf
 *.md text eol=lf
 *.js text eol=lf
 *.jsx text eol=lf
 *.json text eol=lf
+
+# The root index.html is the build output, distributed as-is to Windows
+# workstations; keep CRLF so the file opens cleanly there and diffs stay
+# minimal. src/index.html is source and stays LF like the rest of src/.
+/index.html text eol=crlf
