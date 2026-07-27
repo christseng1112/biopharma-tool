@@ -27,7 +27,7 @@ jobs:
       # Both skip gracefully without it, but in CI we want them to run.
       - run: npx playwright install chromium --with-deps
 
-      # test → build → verify:offline → test:e2e
+      # typecheck → test → build → verify:offline → test:e2e
       - run: npm run check
 
       - name: built artifact matches committed index.html

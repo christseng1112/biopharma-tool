@@ -1,6 +1,13 @@
 import { escapeHtml } from './normalize.js';
 import { APP_VERSION } from './config.js';
 import { QUALITY, MAX_CYCLES } from './scheduler.js';
+import { formatTimestamp } from './format.js';
+/** @typedef {import('./types.js').Assignment} Assignment */
+/** @typedef {import('./types.js').BomPart} BomPart */
+/** @typedef {import('./types.js').CatalogEntry} CatalogEntry */
+/** @typedef {import('./types.js').Component} Component */
+/** @typedef {import('./types.js').ScheduleResult} ScheduleResult */
+
 
 /**
  * Report generators. Output is both rendered in-app (via dangerouslySetInnerHTML)
@@ -47,12 +54,11 @@ export const CSS_STRING = `
  * `sourceLabel` identifies the dataset: the imported filename, or a marker for
  * the built-in defaults. `generatedAt` is injectable so output is reproducible
  * under test.
+ * @param {{title?: string, sourceLabel?: string|null, generatedAt?: Date, appVersion?: string}} [opts]
+ * @returns {string} HTML fragment
  */
 export function provenanceHTML({ title, sourceLabel, generatedAt = new Date(), appVersion = APP_VERSION } = {}) {
-    const stamp = Number.isNaN(generatedAt?.getTime?.()) ? new Date() : generatedAt;
-    const pad = (n) => String(n).padStart(2, '0');
-    const formatted = `${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(stamp.getDate())} `
-        + `${pad(stamp.getHours())}:${pad(stamp.getMinutes())}:${pad(stamp.getSeconds())}`;
+    const formatted = formatTimestamp(generatedAt);
 
     // The document name is already the report's <h1>; repeating it here would
     // just be noise on a printed sheet.
@@ -70,6 +76,15 @@ export function provenanceHTML({ title, sourceLabel, generatedAt = new Date(), a
         + '</div>';
 }
 
+/**
+ * @param {string[]} stageList
+ * @param {Assignment[]} tasks
+ * @param {Record<number, BomPart[]>} customBomMap
+ * @param {Record<string, Component>} componentsDb
+ * @param {Record<number, string>} diagramsDb
+ * @param {{sourceLabel?: string|null, generatedAt?: Date}} [provenance]
+ * @returns {string} HTML fragment
+ */
 export function generateAssemblyGuideHTML(stageList, tasks, customBomMap, componentsDb, diagramsDb, provenance = {}) {
     const title = 'Biopharma Assembly Guide (裝配工單)';
     const htmlParts = [
@@ -133,6 +148,14 @@ export function generateAssemblyGuideHTML(stageList, tasks, customBomMap, compon
     return htmlParts.join("");
 }
 
+/**
+ * @param {Assignment[]} tasks
+ * @param {Record<number, BomPart[]>} customBomMap
+ * @param {Record<string, Component>} componentsDb
+ * @param {Record<number, CatalogEntry>} catalogDb
+ * @param {{sourceLabel?: string|null, generatedAt?: Date}} [provenance]
+ * @returns {string} HTML fragment
+ */
 export function generatePickingListHTML(tasks, customBomMap, componentsDb, catalogDb, provenance = {}) {
     const rawMaterialTotals = {};
     const stockSetTotals = {};
@@ -253,6 +276,9 @@ export const QUALITY_LABELS = {
  * screen-only. The warning blocks are part of the document on purpose: a
  * printed schedule that omits what was NOT scheduled invites exactly the
  * silent-omission failure the rest of this tool guards against.
+ * @param {Partial<ScheduleResult> & {totalItems?: number}} result
+ * @param {{sourceLabel?: string|null, generatedAt?: Date}} [provenance]
+ * @returns {string} HTML fragment
  */
 export function generateScheduleHTML({ schedule = [], unassignable = [], unscheduled = [], quality, totalItems = 0 } = {}, provenance = {}) {
     const title = 'Autoclave Sterilization Schedule (滅菌排程表)';

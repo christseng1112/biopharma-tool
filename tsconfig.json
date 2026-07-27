@@ -1,0 +1,15 @@
+{
+  "//": "Type-checks the pure logic in src/lib via JSDoc. Components are out of scope: the value here is the data shapes (Len/Count/Qty/capacity/rule.max), which is where the string-to-number defects came from.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/lib/**/*.js", "src/data/**/*.js"]
+}

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useDeferredValue } from 'react';
 import { Icons } from './Icons.jsx';
 import { normalizeName } from '../lib/normalize.js';
 import { calculateSchedule, MAX_CYCLES, QUALITY } from '../lib/scheduler.js';
@@ -43,10 +43,24 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
         return [...merged.values()];
     }, [plannerQueue, manualCart]);
 
+    // Scheduling is the expensive part: with the shipped patterns and ~30 items
+    // — just under BACKTRACK_ITEM_LIMIT, where the exhaustive search still runs —
+    // calculateSchedule takes ~143 ms. patternsList gets a new identity on every
+    // keystroke in the pattern editor, so that cost landed on every character
+    // typed. Deferring keeps typing responsive.
+    const deferredPatterns = useDeferredValue(patternsList);
+    const deferredCart = useDeferredValue(combinedCart);
+
     const { schedule, unassignable, unscheduled, quality } = useMemo(
-        () => calculateSchedule(combinedCart, patternsList),
-        [combinedCart, patternsList]
+        () => calculateSchedule(deferredCart, deferredPatterns),
+        [deferredCart, deferredPatterns]
     );
+
+    // The displayed schedule belongs to the deferred inputs, so while they lag
+    // it describes an older configuration. Saying so matters here: an operator
+    // must never read a stale cycle count as the current one, and must not be
+    // able to download a file that disagrees with what is on screen.
+    const isRecalculating = deferredPatterns !== patternsList || deferredCart !== combinedCart;
 
     // Wording comes from QUALITY_LABELS so the on-screen badge and the printed
     // report can never say different things about the same result.
@@ -57,8 +71,11 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
     }[quality];
 
     const handleDownloadSchedule = () => {
+        if (isRecalculating) return;
         // Regenerated on click so the file carries its own generation time.
-        const totalItems = combinedCart.reduce((a, c) => a + c.qty, 0);
+        // Totals come from the deferred cart the schedule was computed from,
+        // so the header cannot contradict the cycles below it.
+        const totalItems = deferredCart.reduce((a, c) => a + c.qty, 0);
         downloadHtml(
             generateScheduleHTML({ schedule, unassignable, unscheduled, quality, totalItems }, { sourceLabel: dataSource }),
             "Sterilization_Schedule.html"
@@ -168,18 +185,25 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
                 <div className="bg-white p-6 rounded-lg shadow-sm min-h-[400px] border">
                     <h2 className="text-lg font-semibold mb-6 flex flex-wrap items-center gap-2 border-b pb-2">
                         <Icons.Package className="w-5 h-5 text-blue-600" />
-                        <span>Sterilization Schedule (Total: {combinedCart.reduce((a, c) => a + c.qty, 0)})</span>
-                        {schedule.length > 0 && (
+                        <span>Sterilization Schedule (Total: {deferredCart.reduce((a, c) => a + c.qty, 0)})</span>
+                        {isRecalculating && (
+                            <span className="text-xs font-normal px-2 py-1 rounded-full border bg-gray-100 text-gray-700 border-gray-300 animate-pulse" title="設定已變更，排程重新計算中；目前顯示的是變更前的結果">
+                                計算中 (recalculating)…
+                            </span>
+                        )}
+                        {!isRecalculating && schedule.length > 0 && (
                             <span className={`text-xs font-normal px-2 py-1 rounded-full border cursor-help ${qualityBadge.className}`} title={qualityBadge.title}>
                                 {schedule.length} cycles · {qualityBadge.label}
                             </span>
                         )}
                         {(schedule.length > 0 || unassignable.length > 0 || unscheduled.length > 0) && (
-                            <button onClick={handleDownloadSchedule} className="ml-auto text-xs bg-white border px-3 py-1 rounded hover:bg-gray-100 flex items-center gap-1" title="下載滅菌排程表 (含警示區塊與來源資訊)">
+                            <button onClick={handleDownloadSchedule} disabled={isRecalculating} className="ml-auto text-xs bg-white border px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1" title={isRecalculating ? "重新計算中，請稍候" : "下載滅菌排程表 (含警示區塊與來源資訊)"}>
                                 <Icons.Download className="w-3 h-3" /> Download
                             </button>
                         )}
                     </h2>
+                    {/* Dimmed while stale so a superseded schedule never looks current. */}
+                    <div className={isRecalculating ? 'opacity-40 transition-opacity' : 'transition-opacity'}>
                     {schedule.length === 0 && unassignable.length === 0 && unscheduled.length === 0 ? (<div className="text-center py-12 text-gray-400"><Icons.Info className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>Add items to generate schedule</p></div>) : (
                         <div className="space-y-6">
                             {unassignable.length > 0 && (<div className="bg-red-50 border border-red-200 rounded-lg p-4"><h3 className="text-red-800 font-bold flex items-center gap-2"><Icons.AlertCircle className="w-4 h-4" /> Unassignable Items <span className="font-normal text-xs">— 沒有任何 Pattern 的 Zone 允許此品項</span></h3><ul className="list-disc list-inside mt-2 text-xs text-red-700">{unassignable.map((u, i) => <li key={i}>{u.item} (x{u.qty})</li>)}</ul></div>)}
@@ -192,6 +216,7 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
                             ))}
                         </div>
                     )}
+                    </div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded border">
                     <h3 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><Icons.Settings className="w-4 h-4" /> Pattern Configuration</h3>

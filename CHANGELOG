@@ -5,6 +5,71 @@ version 欄位與本檔案的最新版本應始終一致。
 
 
 ================================================================================
+[v30.13] - 2026-07-27
+================================================================================
+
+⚡ 效能 (Performance)
+
+Pattern 編輯期間不再逐鍵卡頓
+
+   問題: calculateSchedule 在 useMemo 中同步執行，依賴 [combinedCart,
+         patternsList]。而 handleUpdatePattern / handleUpdateZone 每次都產生新
+         的 patterns 陣列，所以在 Pattern 編輯器改名稱或 program 時，每敲一個
+         字元都會重算整張排程。實測最慢的情況正好落在回溯門檻底下：
+         30 件品項 143 ms（回溯搜尋啟動），60 件與 90 件各 1 ms（超過
+         BACKTRACK_ITEM_LIMIT，只跑貪婪解）。
+   修正: 以 useDeferredValue 延後排程計算的輸入，輸入框維持即時回應。
+   附帶: 延後代表畫面上短暫顯示的是「舊 Pattern 算出的排程」。對 GxP 用途的
+         工具而言不能讓人誤以為看到的是最新結果，因此重算期間顯示「計算中」
+         指示，並停用下載按鈕 —— 避免下載到與畫面不一致的排程。
+         不採 Web Worker：單檔分發下 Worker 需以 blob URL 內嵌，複雜度不成
+         比例於 143 ms。
+
+✨ 改善 (Improvements)
+
+匯出檔名加上時間戳
+
+   問題: 匯出固定為 biopharma_prod_config.json，連續匯出會互相覆蓋，報表
+         來源區塊的檔名也看不出是哪一次的設定。
+   修正: 改為 biopharma_prod_config_YYYY-MM-DD_HHmm.json。時間格式抽成
+         src/lib/format.js 的 formatTimestamp / formatFileStamp，
+         provenanceHTML 一併改用同一份實作。
+
+corrupt 備份的保留上限
+
+   問題: 每次存檔載入失敗就寫一個 BIOPHARMA_AUTOSAVE_CORRUPT_<timestamp>，
+         只進不出。localStorage 有容量上限，長期下來可能塞滿，反而讓正常存檔
+         寫不進去 —— 保護機制本身變成故障來源。
+   修正: 隔離時先清理同前綴的舊備份，只保留最近 3 份（含本次）。
+
+🧰 型別安全 (Type Safety)
+
+- src/lib/types.js 以 JSDoc @typedef 定義 12 個核心資料形狀（Component /
+  CatalogEntry / BomPart / ZoneRule / Zone / Pattern / Assignment /
+  InventoryItem / ScheduleCycle / ScheduleResult / ConfigPayload /
+  ValidationResult），scheduler.js、reports.js、config.js、normalize.js 的
+  匯出函式補上 @param / @returns。
+  Len / Count / Qty / capacity / rule.max 的字串-數字轉換是前兩輪 A2、S5、S6
+  三個 bug 的共同來源，把預期形狀寫下來讓「哪裡必須轉型與驗證」變成明示的。
+- 加入 typescript devDependency 與 tsconfig.json（allowJs + checkJs，範圍限
+  src/lib 與 src/data，不含 components），npm run typecheck 納入 check 鏈與 CI。
+  實測 tsc --checkJs 對現有程式碼產生 31 個錯誤，逐一檢視後全部是註解缺漏
+  （模組作用域的 typedef 未 import、isPlainObject 未宣告為型別謂詞、
+  provenanceHTML 的解構參數缺 @param），沒有任何一個是邏輯錯誤 —— 補完註解後
+  為 0。未為了通過型別檢查而更動既有邏輯。
+
+📖 文件 (Documentation)
+
+- README 新增「共用工作站的存檔行為」：自動存檔位於瀏覽器 profile 的
+  localStorage，同一台工作站同一個 Windows 帳號的操作員會共用並互相覆蓋，
+  不同帳號或不同瀏覽器則各自獨立，清除瀏覽器資料會一併清掉。這是使用情境上的
+  實質限制，先前文件完全沒提。自動存檔應視為單一 session 的暫存，交接與長期
+  保存一律使用 Export。
+- 新增 LICENSE：內部使用聲明（非 OSI 授權），並移除 README 結尾的
+  "Project maintained by [Your Name/Team]" 佔位字串。署名採中性寫法
+  「本專案維護單位」，README 與 LICENSE 皆註明可自行替換為實際單位名稱。
+
+================================================================================
 [v30.12] - 2026-07-27
 ================================================================================
 
@@ -310,8 +375,14 @@ verify:offline 在沒有瀏覽器的環境會失敗
 [Planned] 後續規劃
 ================================================================================
 
-- 品項數量極大時，把回溯搜尋移到 Web Worker，避免計算期間卡住 UI。
 - 預設資料中未被任何 Pattern 收錄的品項，需由領域負責人確認應歸屬哪個 Zone。
+- Zone 的 allowed 改以 SOP No. 參照，根治「Catalog 改名即與 Zone 斷鏈」。
+  牽涉資料模型變更與既有設定檔遷移，且 Group B 器具（鑷子、剪刀等）不在
+  catalog 中、仍須以名稱比對，allowed 會變成 id 與名稱雙軌。應先由製程端決定
+  Group B 是否納入 catalog，再單獨評估，不宜夾在一般優化中順手做。
+- （v30.13 已以 useDeferredValue 解決 Pattern 編輯期間的卡頓。原先規劃的
+  Web Worker 暫不採用：實測最慢為 143 ms，而單檔分發下 Worker 需以 blob URL
+  內嵌，複雜度不成比例。若日後品項規模顯著成長再重新評估。）
 
 
 ================================================================================

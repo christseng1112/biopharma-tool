@@ -1,7 +1,9 @@
 import { isPlainObject } from './normalize.js';
+/** @typedef {import('./types.js').ValidationResult} ValidationResult */
+
 
 /** Single source of truth for the version shown in the UI and written to exports. */
-export const APP_VERSION = "30.12";
+export const APP_VERSION = "30.13";
 
 export const AUTOSAVE_KEY = "BIOPHARMA_AUTOSAVE";
 
@@ -19,6 +21,8 @@ export const LEGACY_AUTOSAVE_KEYS = ["BIOPHARMA_AUTOSAVE_V30_10"];
  *
  * Import previously applied its payload field by field with no validation, so a
  * malformed file left the app half-populated — and autosaved in that state.
+ * @param {unknown} data
+ * @returns {ValidationResult}
  */
 export const validateConfig = (data) => {
     const errors = [];

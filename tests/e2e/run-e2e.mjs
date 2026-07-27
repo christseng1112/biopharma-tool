@@ -226,6 +226,77 @@ scenario('Zone rules are editable and guard their max against NaN', async ({ pag
     ok('deleting the only rule drops the key', rules3 === undefined, JSON.stringify(rules3));
 });
 
+scenario('Typing in the pattern editor stays responsive and never shows a stale result as current', async ({ page }) => {
+    await addAssignment(page, 3);
+    await page.getByRole('button', { name: /Autoclave Calc/ }).click();
+    await page.waitForTimeout(800);
+    await page.locator('.cursor-pointer', { hasText: 'Pattern 1 (MFG USP)' }).first().click();
+    await page.waitForTimeout(400);
+
+    const nameInput = page.locator('input[placeholder="Name"]').first();
+    const typed = 'Pattern 1 RENAMED';
+    await nameInput.fill('');
+    // Type character by character: this is the path that used to run a ~143 ms
+    // synchronous schedule computation per keystroke.
+    await nameInput.pressSequentially(typed, { delay: 15 });
+    ok('no characters dropped while typing', await nameInput.inputValue() === typed, await nameInput.inputValue());
+
+    // Whatever the timing, the two states must be self-consistent: either the
+    // recalculating badge is up and Download is disabled, or neither is true.
+    const settled = async () => {
+        const recalculating = await page.locator('text=計算中 (recalculating)').count() > 0;
+        const dl = page.getByRole('button', { name: /Download/ });
+        const disabled = await dl.count() > 0 ? await dl.isDisabled() : null;
+        return { recalculating, disabled };
+    };
+    const mid = await settled();
+    ok('download is disabled whenever the badge is showing',
+        !mid.recalculating || mid.disabled === true, JSON.stringify(mid));
+
+    await page.waitForTimeout(1200);
+    const after = await settled();
+    ok('recalculation finishes', after.recalculating === false, JSON.stringify(after));
+    ok('download is enabled once settled', after.disabled === false, JSON.stringify(after));
+    ok('the rename took effect', /Pattern 1 RENAMED/.test(await page.textContent('#root')));
+});
+
+// --------------------------------------------------------- export / backups ---
+
+scenario('Config export filenames are timestamped so they do not overwrite', async ({ page }) => {
+    const dir = mkdtempSync(join(tmpdir(), 'e2e-cfg-'));
+    try {
+        const [dl] = await Promise.all([
+            page.waitForEvent('download'),
+            page.getByRole('button', { name: /Export/ }).click()
+        ]);
+        const name = dl.suggestedFilename();
+        ok('filename carries a date and time', /^biopharma_prod_config_\d{4}-\d{2}-\d{2}_\d{4}\.json$/.test(name), name);
+        await dl.saveAs(join(dir, name));
+        const payload = JSON.parse(readFileSync(join(dir, name), 'utf8'));
+        ok('exported payload is a valid config', typeof payload.version === 'string' && !!payload.database);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+// localStorage has a quota; unbounded quarantine copies could eventually make
+// the ordinary autosave fail, losing live work in order to keep stale copies.
+scenario('Quarantined autosave backups are capped at three', async ({ page }) => {
+    for (let i = 0; i < 5; i++) {
+        await page.evaluate(i => {
+            localStorage.setItem('BIOPHARMA_AUTOSAVE', `{ not json ${i}`);
+        }, i);
+        await page.reload();
+        await page.waitForSelector('#root h1');
+        await page.waitForTimeout(300);
+    }
+    const backups = await page.evaluate(() => Object.keys(localStorage).filter(k => k.includes('_CORRUPT_')));
+    ok('at most three backups retained', backups.length <= 3, `${backups.length}: ${JSON.stringify(backups)}`);
+    ok('the newest corrupt payload is among them',
+        (await Promise.all(backups.map(k => page.evaluate(x => localStorage.getItem(x), k))))
+            .some(v => /not json 4/.test(v || '')));
+});
+
 // ------------------------------------------------------------------ runner ---
 
 for (const { name, fn } of scenarios) {
