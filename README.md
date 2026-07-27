@@ -4,7 +4,7 @@
 
 本工具封裝於單一 HTML 檔案 `index.html` 中，無需伺服器部署，點擊即可在瀏覽器中運行。
 
-**目前版本：v30.11**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
+**目前版本：v30.13**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
 
 ---
 
@@ -31,12 +31,19 @@
 - **複雜規則檢核**：支援進階限制邏輯（例如：某區域雖然容量為 6，但剪刀最多只能放 2 把）。
 - **結果具決定性**：候選排序為「受 rule 限制者優先 → 數量遞減 → 名稱」，同一組品項無論加入順序為何都得到相同排程。
 - **標示解的品質**：排程標題旁的徽章顯示
-  - **最佳解 (Optimal)** — 已窮舉搜尋，不存在更短的排程
+  - **最佳解 (Optimal)** — 已窮舉所有 Pattern 組合，在目前的裝填規則下無更短排程
   - **近似解 (Heuristic)** — 品項過多或搜尋預算用盡，僅提供貪婪解
   - **不完整 (Incomplete)** — 有品項未能排入，請見下方警示
 - **未排程項目一律回報**，分為兩類：
   - **Unassignable**：沒有任何 Pattern 的 Zone 允許此品項。
   - **Not Scheduled**：超出 100 循環上限，未排入任何批次。
+- **排程表可下載**：與領料單、裝配工單相同格式的獨立 HTML，含來源資訊、
+  結果品質標示與未排程警示區塊，供現場列印與逐項打勾。
+- **Zone 限制可於 UI 編輯**：各 Zone 的 Constraints（如「剪刀最多 2 把」）
+  可直接新增、調整上限、選擇受限品項與刪除，不再需要改 JSON 匯入。
+- **編輯期間不卡頓**：Pattern 或購物車變更後排程以延後方式重算，輸入框維持
+  即時回應。重算期間標題旁顯示 **計算中**，且下載按鈕暫時停用 —— 確保下載到的
+  排程一定與畫面上的一致，不會拿到依舊設定算出的結果。
 
 ### ⚙️ 3. 系統與資料庫
 
@@ -55,7 +62,8 @@
 | Styling | Tailwind CSS（建置時 purge 後內嵌） |
 | Icons | 內建 Lucide 風格 inline SVG（無外部圖示字型） |
 | Build | Vite + `vite-plugin-singlefile` |
-| Test | Vitest |
+| Test | Vitest（單元）＋ Playwright（e2e，對建置產物） |
+| Type check | JSDoc typedef + `tsc --checkJs`（無 `.ts` 檔、無轉譯） |
 | Architecture | Single File HTML（零外部請求） |
 
 > ✅ **完全離線可用**：`index.html` 內嵌所有資源，開啟時不會發出任何外部請求。
@@ -72,8 +80,10 @@
 src/
   lib/normalize.js          normalizeName / escapeHtml / normalizePatterns
   lib/scheduler.js          simulateLoad / runGreedySimulation / calculateSchedule
-  lib/reports.js            領料單與裝配工單的 HTML 產生器
+  lib/reports.js            領料單、裝配工單與滅菌排程表的 HTML 產生器
   lib/config.js             APP_VERSION、存檔 key、validateConfig
+  lib/format.js             時間戳格式化（報表來源區塊與匯出檔名共用）
+  lib/types.js              JSDoc typedef（核心資料形狀，無執行期程式碼）
   lib/download.js           檔案下載
   lib/globalErrorHandler.js 全域錯誤安全網
   data/defaults.js          預設資料集
@@ -81,7 +91,8 @@ src/
                             AutoclaveModule、App
   main.jsx                  進入點
   styles.css                Tailwind directives + 專案樣式
-tests/                      Vitest 測試
+tests/                      Vitest 單元測試
+tests/e2e/                  瀏覽器端對端測試（無瀏覽器時自動 skip）
 scripts/publish.mjs         把 dist/index.html 發佈為 ./index.html
 scripts/verify-offline.mjs  驗證產物真的自包含
 ```
@@ -91,10 +102,21 @@ npm install
 
 npm run dev             # 開發伺服器（hot reload）
 npm test                # 執行測試
+npm run typecheck       # tsc --checkJs（範圍限 src/lib 與 src/data）
 npm run build           # 建置並更新 ./index.html
 npm run verify:offline  # 驗證產物零外部請求且能離線渲染
-npm run check           # test + build + verify:offline
+npm run test:e2e        # 瀏覽器端對端測試（對建置後的 index.html）
+npm run check           # typecheck + test + build + verify:offline + test:e2e
 ```
+
+型別檢查以 JSDoc 進行，專案沒有 `.ts` 檔也沒有轉譯步驟：`src/lib/types.js` 用
+`@typedef` 寫下核心資料形狀，各模組以 `import('./types.js')` 引用。範圍刻意限定
+在 `src/lib` 與 `src/data` —— 純邏輯與資料，也正是計算生產數字的部分；
+`components/` 不納入，避免為了滿足檢查而扭曲 React 慣用寫法。
+
+CI（GitHub Actions，`.github/workflows/check.yml`）在每次 push / PR 執行
+`npm run check`，並額外驗證 commit 的 `index.html` 與 `src/` 建置結果一致 ——
+改了原始碼忘記重建、或手改產物，都會被擋下。
 
 `verify:offline` 分兩部分：
 
@@ -147,6 +169,32 @@ npm run check           # test + build + verify:offline
 - 產生的 Picking List 與 Assembly Guide 是工具自動產生的參考文件，**非受控文件**；正式生產請依所屬品質系統的受控文件作業。
 - 預設資料中的 `1” Braided Silicone Tubing Set` 未被任何滅菌 Pattern 的 Zone 收錄，計算時會被列為 Unassignable。若需納入排程，請於 Database 分頁將其加入對應 Zone 的允許清單。
 
+### 共用工作站的存檔行為
+
+自動存檔寫入的是**瀏覽器 profile 的 localStorage**，不是檔案系統上的檔案。這帶來三個
+實務上的限制，在多人共用工作站的現場特別容易踩到：
+
+- **同一個 Windows 帳號、同一個瀏覽器 = 同一份存檔。** 交接班的兩位操作員若都用
+  同一台工作站的同一個帳號登入，後開啟的人會看到前一位留下的規劃，而自己的變更
+  也會在 1 秒後覆蓋掉對方的 —— 兩份工作無法並存。
+- **不同的 Windows 帳號、或不同瀏覽器（Chrome / Edge）各自獨立。** 在 A 帳號存的
+  東西，在 B 帳號開同一個 `index.html` 是看不到的。
+- **清除瀏覽器資料會一併清掉存檔。** 這通常由 IT 政策或使用者自行觸發，工具無從
+  攔截。
+
+因此**自動存檔只應視為單一使用者、單一 session 的暫存**，不是保存機制。
+
+**交接與長期保存請一律使用 Export**：左側 Sidebar 的 Export 會下載一份帶時間戳的
+JSON（`biopharma_prod_config_YYYY-MM-DD_HHmm.json`），放到共用磁碟或隨工單留存；
+接手的人以 Import 載入即可完整還原。檔名含時間戳，連續匯出不會互相覆蓋，報表的
+來源區塊也能對應到具體是哪一次匯出的設定。
+
 ---
 
-Project maintained by [Your Name/Team]
+## 授權 (License)
+
+本工具為內部使用工具，著作權歸屬本專案維護單位所有，未經授權不得對外散布。
+完整條款見 [LICENSE](./LICENSE)。
+
+> 上述「本專案維護單位」為中性寫法，可自行替換為實際的單位或團隊名稱
+>（README 與 LICENSE 兩處需一併修改）。

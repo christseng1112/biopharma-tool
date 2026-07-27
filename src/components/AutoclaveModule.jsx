@@ -1,9 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useDeferredValue } from 'react';
 import { Icons } from './Icons.jsx';
 import { normalizeName } from '../lib/normalize.js';
 import { calculateSchedule, MAX_CYCLES, QUALITY } from '../lib/scheduler.js';
+import { generateScheduleHTML, QUALITY_LABELS } from '../lib/reports.js';
+import { downloadHtml } from '../lib/download.js';
 
-export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, setPatternsList, inventoryB, setInventoryB, manualCart, setManualCart }) => {
+export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, setPatternsList, inventoryB, setInventoryB, manualCart, setManualCart, dataSource }) => {
     const [selectedItem, setSelectedItem] = useState("");
     const [quantity, setQuantity] = useState(1);
     const [expandedPatternId, setExpandedPatternId] = useState(null);
@@ -41,20 +43,44 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
         return [...merged.values()];
     }, [plannerQueue, manualCart]);
 
+    // Scheduling is the expensive part: with the shipped patterns and ~30 items
+    // — just under BACKTRACK_ITEM_LIMIT, where the exhaustive search still runs —
+    // calculateSchedule takes ~143 ms. patternsList gets a new identity on every
+    // keystroke in the pattern editor, so that cost landed on every character
+    // typed. Deferring keeps typing responsive.
+    const deferredPatterns = useDeferredValue(patternsList);
+    const deferredCart = useDeferredValue(combinedCart);
+
     const { schedule, unassignable, unscheduled, quality } = useMemo(
-        () => calculateSchedule(combinedCart, patternsList),
-        [combinedCart, patternsList]
+        () => calculateSchedule(deferredCart, deferredPatterns),
+        [deferredCart, deferredPatterns]
     );
 
+    // The displayed schedule belongs to the deferred inputs, so while they lag
+    // it describes an older configuration. Saying so matters here: an operator
+    // must never read a stale cycle count as the current one, and must not be
+    // able to download a file that disagrees with what is on screen.
+    const isRecalculating = deferredPatterns !== patternsList || deferredCart !== combinedCart;
+
+    // Wording comes from QUALITY_LABELS so the on-screen badge and the printed
+    // report can never say different things about the same result.
     const qualityBadge = {
-        // The search enumerates sequences of patterns; the packing inside each
-        // cycle is fixed by simulateLoad. So what is proven is "no shorter
-        // sequence of patterns under this packing rule" — not "no shorter
-        // schedule exists at all". Say what is actually proven.
-        [QUALITY.OPTIMAL]: { label: '最佳解 (Optimal)', title: '已窮舉所有 Pattern 組合：在目前的裝填規則下沒有更短的排程', className: 'bg-green-100 text-green-800 border-green-300' },
-        [QUALITY.HEURISTIC]: { label: '近似解 (Heuristic)', title: '品項過多或搜尋預算用盡，僅提供貪婪解；實際可能存在更短的排程', className: 'bg-amber-100 text-amber-800 border-amber-300' },
-        [QUALITY.INCOMPLETE]: { label: '不完整 (Incomplete)', title: '有品項未能排入任何批次，請見下方警示', className: 'bg-red-100 text-red-800 border-red-300' }
+        [QUALITY.OPTIMAL]: { ...QUALITY_LABELS[QUALITY.OPTIMAL], className: 'bg-green-100 text-green-800 border-green-300' },
+        [QUALITY.HEURISTIC]: { ...QUALITY_LABELS[QUALITY.HEURISTIC], className: 'bg-amber-100 text-amber-800 border-amber-300' },
+        [QUALITY.INCOMPLETE]: { ...QUALITY_LABELS[QUALITY.INCOMPLETE], className: 'bg-red-100 text-red-800 border-red-300' }
     }[quality];
+
+    const handleDownloadSchedule = () => {
+        if (isRecalculating) return;
+        // Regenerated on click so the file carries its own generation time.
+        // Totals come from the deferred cart the schedule was computed from,
+        // so the header cannot contradict the cycles below it.
+        const totalItems = deferredCart.reduce((a, c) => a + c.qty, 0);
+        downloadHtml(
+            generateScheduleHTML({ schedule, unassignable, unscheduled, quality, totalItems }, { sourceLabel: dataSource }),
+            "Sterilization_Schedule.html"
+        );
+    };
 
     // A2: same guard as the planner — a blank field must not become NaN.
     const qtyValue = parseInt(quantity, 10);
@@ -107,6 +133,38 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
         }));
     };
 
+    // --- Zone rule (constraint) editing ---
+    // Rules were display-only: the tool's headline feature ("a zone holds 6 but
+    // at most 2 scissors") could only be changed by hand-editing a config JSON
+    // and importing it. Same class of gap as the catalog before it got add/delete.
+    const updateZoneRules = (pid, zidx, mapFn) => setPatternsList(patternsList.map(p => {
+        if (p.id !== pid) return p;
+        const nz = [...p.zones];
+        const next = mapFn(nz[zidx].rules || []);
+        // Drop the key entirely when the last rule goes, matching the shape
+        // normalizePatterns produces for rule-less zones.
+        nz[zidx] = { ...nz[zidx], rules: next && next.length > 0 ? next : undefined };
+        return { ...p, zones: nz };
+    }));
+    const handleAddRule = (pid, zidx) => updateZoneRules(pid, zidx, rules => [...rules, { items: [], max: 1 }]);
+    const handleDeleteRule = (pid, zidx, ridx) => updateZoneRules(pid, zidx, rules => rules.filter((_, i) => i !== ridx));
+    // Same NaN guard as capacity: a cleared field must not store NaN, which
+    // would make ruleCapFor return NaN and the zone refuse the item forever.
+    const handleUpdateRuleMax = (pid, zidx, ridx, raw) => {
+        const n = raw === "" ? 0 : parseInt(raw, 10);
+        if (!Number.isFinite(n) || n < 0) return;
+        updateZoneRules(pid, zidx, rules => rules.map((r, i) => i === ridx ? { ...r, max: n } : r));
+    };
+    const handleAddRuleItem = (pid, zidx, ridx, item) => {
+        if (!item) return;
+        updateZoneRules(pid, zidx, rules => rules.map((r, i) =>
+            i === ridx && !(r.items || []).includes(item) ? { ...r, items: [...(r.items || []), item] } : r));
+    };
+    const handleRemoveRuleItem = (pid, zidx, ridx, item) => {
+        updateZoneRules(pid, zidx, rules => rules.map((r, i) =>
+            i === ridx ? { ...r, items: (r.items || []).filter(x => x !== item) } : r));
+    };
+
     const groupAItems = useMemo(() => [...new Set(Object.values(dbCatalog).map(c => normalizeName(c.Name)))].sort(), [dbCatalog]);
     const groupBItems = useMemo(() => [...new Set(inventoryB)].sort(), [inventoryB]);
 
@@ -127,13 +185,25 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
                 <div className="bg-white p-6 rounded-lg shadow-sm min-h-[400px] border">
                     <h2 className="text-lg font-semibold mb-6 flex flex-wrap items-center gap-2 border-b pb-2">
                         <Icons.Package className="w-5 h-5 text-blue-600" />
-                        <span>Sterilization Schedule (Total: {combinedCart.reduce((a, c) => a + c.qty, 0)})</span>
-                        {schedule.length > 0 && (
+                        <span>Sterilization Schedule (Total: {deferredCart.reduce((a, c) => a + c.qty, 0)})</span>
+                        {isRecalculating && (
+                            <span className="text-xs font-normal px-2 py-1 rounded-full border bg-gray-100 text-gray-700 border-gray-300 animate-pulse" title="設定已變更，排程重新計算中；目前顯示的是變更前的結果">
+                                計算中 (recalculating)…
+                            </span>
+                        )}
+                        {!isRecalculating && schedule.length > 0 && (
                             <span className={`text-xs font-normal px-2 py-1 rounded-full border cursor-help ${qualityBadge.className}`} title={qualityBadge.title}>
                                 {schedule.length} cycles · {qualityBadge.label}
                             </span>
                         )}
+                        {(schedule.length > 0 || unassignable.length > 0 || unscheduled.length > 0) && (
+                            <button onClick={handleDownloadSchedule} disabled={isRecalculating} className="ml-auto text-xs bg-white border px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1" title={isRecalculating ? "重新計算中，請稍候" : "下載滅菌排程表 (含警示區塊與來源資訊)"}>
+                                <Icons.Download className="w-3 h-3" /> Download
+                            </button>
+                        )}
                     </h2>
+                    {/* Dimmed while stale so a superseded schedule never looks current. */}
+                    <div className={isRecalculating ? 'opacity-40 transition-opacity' : 'transition-opacity'}>
                     {schedule.length === 0 && unassignable.length === 0 && unscheduled.length === 0 ? (<div className="text-center py-12 text-gray-400"><Icons.Info className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>Add items to generate schedule</p></div>) : (
                         <div className="space-y-6">
                             {unassignable.length > 0 && (<div className="bg-red-50 border border-red-200 rounded-lg p-4"><h3 className="text-red-800 font-bold flex items-center gap-2"><Icons.AlertCircle className="w-4 h-4" /> Unassignable Items <span className="font-normal text-xs">— 沒有任何 Pattern 的 Zone 允許此品項</span></h3><ul className="list-disc list-inside mt-2 text-xs text-red-700">{unassignable.map((u, i) => <li key={i}>{u.item} (x{u.qty})</li>)}</ul></div>)}
@@ -146,6 +216,7 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
                             ))}
                         </div>
                     )}
+                    </div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded border">
                     <h3 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><Icons.Settings className="w-4 h-4" /> Pattern Configuration</h3>
@@ -167,7 +238,32 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
                                                     <div key={zIdx} className="bg-white border p-2 rounded">
                                                         <div className="flex gap-2 mb-1"><input className="flex-1 border text-xs p-1" value={zone.name} onChange={e => handleUpdateZone(pattern.id, zIdx, 'name', e.target.value)} /><input type="number" min="0" className={`w-12 border text-xs p-1 ${Number.isFinite(zone.capacity) ? '' : 'border-red-400 bg-red-50'}`} value={Number.isFinite(zone.capacity) ? zone.capacity : ''} onChange={e => handleUpdateZoneCapacity(pattern.id, zIdx, e.target.value)} title="Zone capacity" /><button onClick={() => handleDeleteZone(pattern.id, zIdx)} className="text-red-400"><Icons.Trash2 className="w-3 h-3" /></button></div>
                                                         <div className="flex flex-wrap gap-1 mb-1">{zone.allowed.map(item => (<span key={item} className="text-xs bg-blue-50 text-blue-800 px-1 rounded flex items-center gap-1" title={item}>{item.slice(0, 15)}... <button onClick={() => handleRemoveAllowedItem(pattern.id, zIdx, item)}><Icons.X className="w-3 h-3" /></button></span>))}</div>
-                                                        {zone.rules && zone.rules.length > 0 && (<div className="mt-2 bg-yellow-50 p-2 rounded border border-yellow-200 text-xs"><span className="font-bold text-yellow-700 block mb-1">Constraints:</span><ul className="list-disc list-inside text-yellow-800">{zone.rules.map((rule, rIdx) => rule.items && rule.max ? (<li key={rIdx}>Max <strong>{rule.max}</strong> for: {rule.items.join(", ")}</li>) : null)}</ul></div>)}
+                                                        <div className="mt-2 bg-yellow-50 p-2 rounded border border-yellow-200 text-xs">
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <span className="font-bold text-yellow-700" title="限制某些品項在此 Zone 的合計上限，例如：剪刀最多 2 把">Constraints (限制)</span>
+                                                                <button onClick={() => handleAddRule(pattern.id, zIdx)} className="bg-yellow-100 border border-yellow-300 px-2 rounded hover:bg-yellow-200">+ Rule</button>
+                                                            </div>
+                                                            {(zone.rules || []).map((rule, rIdx) => (
+                                                                <div key={rIdx} className="bg-white border border-yellow-200 rounded p-1 mb-1">
+                                                                    <div className="flex items-center gap-1 mb-1">
+                                                                        <span>Max</span>
+                                                                        <input type="number" min="0" className="w-12 border p-0.5" value={Number.isFinite(rule.max) ? rule.max : ''} onChange={e => handleUpdateRuleMax(pattern.id, zIdx, rIdx, e.target.value)} title="此限制內所有品項的合計上限" />
+                                                                        <span>for:</span>
+                                                                        <button onClick={() => handleDeleteRule(pattern.id, zIdx, rIdx)} className="ml-auto text-red-400 hover:text-red-600" title="刪除此限制" aria-label="Delete rule"><Icons.Trash2 className="w-3 h-3" /></button>
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-1 mb-1">
+                                                                        {(rule.items || []).map(item => (
+                                                                            <span key={item} className="bg-yellow-100 text-yellow-900 px-1 rounded flex items-center gap-1" title={item}>{item.length > 18 ? item.slice(0, 18) + '…' : item}<button onClick={() => handleRemoveRuleItem(pattern.id, zIdx, rIdx, item)} aria-label={`Remove ${item}`}><Icons.X className="w-3 h-3" /></button></span>
+                                                                        ))}
+                                                                        {(rule.items || []).length === 0 && <span className="text-yellow-600">⚠️ 尚未選擇品項，此限制不會生效</span>}
+                                                                    </div>
+                                                                    <select className="w-full border p-0.5" value="" onChange={e => handleAddRuleItem(pattern.id, zIdx, rIdx, e.target.value)}>
+                                                                        <option value="">+ 加入受限品項（限此 Zone 的允許清單）...</option>
+                                                                        {zone.allowed.filter(i => !(rule.items || []).includes(i)).map(i => <option key={i} value={i}>{i}</option>)}
+                                                                    </select>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                         <select className="w-full text-xs border p-1" onChange={e => handleAddAllowedItem(pattern.id, zIdx, e.target.value)} value=""><option value="">+ Add Item...</option><optgroup label="Tubing">{groupAItems.map(i => <option key={i} value={i} disabled={zone.allowed.includes(i)}>{i}</option>)}</optgroup><optgroup label="Equipment">{groupBItems.map(i => <option key={i} value={i} disabled={zone.allowed.includes(i)}>{i}</option>)}</optgroup></select>
                                                     </div>
                                                 ))}
