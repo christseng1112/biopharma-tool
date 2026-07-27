@@ -1,6 +1,227 @@
 Changelog
 
+版本號的唯一來源是 index.html 中的 APP_VERSION 常數。畫面標題、匯出設定檔的
+version 欄位與本檔案的最新版本應始終一致。
+
+
+================================================================================
+[v30.11] - 2026-07-27
+================================================================================
+
+🐛 Bug Fixes (錯誤修復) — 資料正確性
+
+本版修正五個會產生錯誤資料且不易察覺的問題。本工具計算的是生產用的物料數量與
+滅菌批次，因此這些問題都可能讓現場依據錯誤的數字作業。
+
+1. 滅菌排程會靜默丟棄物品
+
+   問題: 貪婪演算法的兩個跳出條件（100 循環安全上限，以及「本輪無法裝載任何
+         物品」）都會把剩餘庫存直接丟棄。這些物品既不會出現在排程中，也不會
+         被列為 unassignable，使用者看到的批次數會偏少，實際生產會有器材未
+         滅菌。
+   修正: runGreedySimulation 改為回傳剩餘庫存；calculateSchedule 以
+         unscheduled 回報，UI 以獨立的橘色警示區塊顯示，與「沒有任何 Pattern
+         允許此品項」的紅色 Unassignable 區塊分開。
+   附帶: 回溯搜尋不再拿「不完整的貪婪解」當作剪枝上界（原本會如此，可能因此
+         排除掉真正可行的完整解），並將遞迴深度限制在循環上限內。
+
+2. 數量欄位清空後產生 NaN
+
+   問題: Qty 欄位為空時 parseInt("") 得到 NaN，寫入 assignment 後整張領料單
+         顯示 "NaN cm"。
+   修正: Planner 與 Autoclave 的數量輸入皆先驗證，未通過時停用 Add 按鈕並顯示
+         提示；BOM 編輯器對無法解析的輸入保留空字串而非存入 NaN。
+
+3. 報表未做 HTML 跳脫
+
+   問題: 兩支報表產生器把元件名稱、目錄名稱與料號直接串進 HTML 字串，再以
+         dangerouslySetInnerHTML 渲染，僅有 ASCII 示意圖有跳脫。這些欄位可經
+         Database 分頁編輯或由匯入的設定檔寫入，因此一份來自他人的設定檔可以
+         在使用者瀏覽器中執行 script，或用含 < 的名稱破壞報表版面。
+   修正: 新增 escapeHtml 並套用到兩支產生器的所有插值點。
+
+4. 自動存檔在讀取失敗時被覆蓋
+
+   問題: 存檔解析失敗只記錄到 console，1 秒後防抖寫入就以預設狀態覆蓋同一個
+         key，原本可能還能救回的資料就此消失。此外存檔 key 綁死版本號
+         (BIOPHARMA_AUTOSAVE_V30_10)，每次改版都會讓使用者的存檔失聯。
+   修正: 讀取失敗時將原始內容備份到 BIOPHARMA_AUTOSAVE_CORRUPT_<timestamp>
+         並於畫面顯示提示；在載入流程完成前阻擋寫入。存檔 key 改為不含版本的
+         BIOPHARMA_AUTOSAVE，並在首次載入時自動遷移舊 key。
+
+5. 匯入未驗證結構、未正規化 Pattern
+
+   問題: 匯入時逐欄位套用且完全不驗證，格式錯誤的檔案會讓程式處於半套用狀態
+         並被自動存檔記錄下來。另外匯入與還原的 patterns 沒有經過 normalizeName
+         正規化（僅內建預設值有），導致 zone 的允許名稱對不上，所有品項都被
+         判為 unassignable。
+   修正: 新增 validateConfig，驗證通過才套用任何資料，未通過時列出具體錯誤且
+         不改動現有狀態；匯入與還原的 patterns 走與內建預設值相同的正規化流程。
+
+🧹 Refactor
+
+- 抽出共用的 normalizePatterns 與設定檔 payload 組裝函式，移除初始化與
+  Reset Defaults 之間重複的正規化程式碼。
+- 上述路徑的 alert() 回饋改為頁面內的錯誤 banner。
+
+🏗️ Architecture — 可測試性與離線可用性
+
+抽出純邏輯並建立測試
+
+   問題: 排程演算法與報表產生器是本工具的全部價值所在，計算的是生產用的物料
+         長度與滅菌批次，但完全沒有測試；且因全部寫在 <script type="text/babel">
+         區塊內，測試框架無法載入。
+   修正: 邏輯移至 src/ 下的 ES 模組 (normalize / scheduler / reports / config /
+         download / defaults / components)，並以 Vitest 建立 81 項測試，涵蓋
+         三分類完整性、zone rule 上限與溢位、領料單加總與切割明細一致性、
+         報表跳脫、匯出入 round-trip、未正規化設定檔的比對行為。
+         另有兩項測試釘住預設資料集的性質（catalog 全品項可完整排程；恰有一
+         項未被任何 Pattern 收錄），資料一旦變動即會顯現。
+
+離線可用 (Offline-capable)
+
+   問題: README 宣稱本工具「便於在封閉或管制的內網環境中分發與執行」，實際上
+         React、Tailwind、Babel、Font Awesome 皆由外部 CDN 載入。實測在無網路
+         環境開啟為完全空白畫面。
+   修正: 導入 Vite + vite-plugin-singlefile。React 改用 production build、
+         Babel 移至建置期（執行期不再需要編譯）、Tailwind 以 PostCSS purge 後
+         內嵌、Font Awesome 全數改用專案內既有的 inline SVG Icons。
+         產物為零外部請求的單一檔案（約 220 KB），仍可直接開檔使用。
+   驗證: scripts/verify-offline.mjs 在封鎖所有非 file:// 請求的情況下實際渲染
+         並巡覽全部分頁；scripts/publish.mjs 在偵測到任何外部參照時拒絕發佈。
+
+   注意: index.html 自本版起為建置產物，請勿直接編輯；原始碼位於 src/。
+         建置指令見 README。
+
+🐛 全域錯誤處理
+
+   搬移至模組化架構的過程中，原本位於 <head> 的 window.onerror 安全網一度遺失，
+   本版補回並改良：不再使用 alert()（render 迴圈中的錯誤會產生無法關閉的連續
+   對話框），改為頁面內可關閉的錯誤橫幅，並額外攔截 unhandledrejection。
+
+📋 GxP — 報表可追溯性
+
+   問題: Picking List 與 Assembly Guide 是要印出來帶到生產現場的文件，但頁面上
+         沒有任何來源資訊 — 一張沒有出處的紙和任何一張紙沒有分別，無法判斷是
+         哪一版工具、依據哪一份資料、何時產生的。
+   修正: 兩支報表在標題下方加入來源區塊，內容包含：
+         - Generated / 產生時間（精確到秒）
+         - Tool version / 工具版本
+         - Data source / 資料來源（匯入的檔名與其 version，或明確標示為內建預設值）
+         - 「本文件由工具自動產生，為非受控文件 (UNCONTROLLED DOCUMENT)」聲明
+         下載的 HTML 亦內嵌對應樣式，單獨開啟時排版一致。
+         下載時會重新產生，因此檔案帶的是自己的產生時間。
+
+⚙️ 演算法 (Algorithm)
+
+排程結果具決定性
+
+   問題: 各 Zone 的候選順序取決於 inventory 陣列的順序，也就是操作者加入品項的
+         先後。同一組品項在不同 session 可能算出不同的批次數 — 對一個要拿來排
+         班的數字而言不可接受。
+   修正: 候選改為明確排序：受 rule 限制的品項優先（一個上限 2 的品項只能佔那 2
+         個位置，先讓不受限品項填滿會把它擠到多餘的循環），其次依數量遞減、
+         再依名稱。以全排列測試驗證任何輸入順序都得到相同排程。
+         例：Zone 容量 6、剪刀上限 2，6 把剪刀 + 6 支鑷子 —
+         受限優先為 3 個循環，不受限優先為 4 個。
+
+標示最佳解 / 近似解
+
+   問題: 回溯搜尋僅在品項數 < 50 時執行，且有 3000 次迭代上限；超過即靜默降級
+         為貪婪解，使用者無從得知看到的批次數是不是最少的。
+   修正: calculateSchedule 回傳 quality（optimal / heuristic / incomplete），
+         UI 於排程標題旁以徽章顯示，滑鼠停留可看說明。
+
+合併同名品項
+
+   問題: Planner 帶入與手動加入的同名品項是兩筆獨立資料，總數與裝載計畫讀起來
+         容易混淆。
+   修正: combinedCart 依品項名稱合併，並標記來源為 planner / manual / 兩者。
+
+🧩 功能與健壯性 (Features & Robustness)
+
+Catalog 可新增與刪除
+
+   問題: Catalog 編輯器只能修改既有列。新增管組編號只能改 JSON 再匯入，退役的
+         項目則永遠無法移除。
+   修正: 新增列（自動配號）與刪除列（連同其 BOM 與示意圖）。刪除前檢查是否有
+         Assignment 正在引用，有則拒絕並說明原因。
+
+React Error Boundary
+
+   問題: 渲染期錯誤會讓整頁變空白，操作者無從判斷發生什麼事。
+   修正: 新增 ErrorBoundary，顯示錯誤內容、提供重試 / 重新載入，並提示資料仍在
+         自動存檔中未遺失。
+
+以 inline 訊息取代 alert()
+
+   問題: 所有編輯器回饋都用 alert()，會阻擋頁面、無法回頭查看、也無法排版。
+   修正: 改為各編輯器內的狀態列（成功 / 錯誤 / 提示三種樣式，數秒後自動消失）。
+
+Stock_Code 型別防禦
+
+   問題: 匯入的 JSON 若把 Stock_Code 寫成數字，selectedTubingData.Stock_Code.trim()
+         會拋出 "trim is not a function"。
+   修正: 一律先轉字串再判斷。
+
+設定檔驗證涵蓋成員結構
+
+   問題: validateConfig 只檢查 catalog / components / diagrams / bom 是不是物件，
+         沒有檢查其成員。例如 catalog: {1: null} 可通過驗證，然後在渲染時崩潰。
+   修正: 逐一驗證成員形狀，讓問題在匯入當下就被擋下並具名回報，而不是等到畫面
+         已經空白才由 Error Boundary 接住。
+
+🧹 Housekeeping
+
+- 建立單一版本來源 APP_VERSION，畫面標題、H1 與匯出檔皆引用之。
+- Tab 識別碼由 tab1/tab2/tab3/tab5/tab4 改為語意化名稱
+  (plan / picking / assembly / autoclave / database)，並讓渲染順序與按鈕順序一致。
+- README 對齊實際狀況：修正檔名 (原本指向不存在的
+  Integrated_Tubing_Autoclave_Tool.html)、補上技術棧與開發指引。
+- 新增 .gitignore 與 .gitattributes（發佈用的 index.html 維持 CRLF，src/ 為 LF）。
+- 新增 npm scripts：test / build / verify:offline / check。
+
+🔧 工具鏈修正 (Toolchain)
+
+verify:offline 在沒有瀏覽器的環境會失敗
+
+   問題: 腳本的瀏覽器偵測只考慮了開發容器的固定路徑。在一般開發機上 playwright
+         雖然裝了（在 devDependencies），但 npm install 不會下載瀏覽器二進位，
+         因此不會走 skip 分支，chromium.launch() 直接拋出未接住的例外 ——
+         測試與建置都過了，npm run check 卻以 stack trace 收場。
+   修正: 判斷條件由「playwright 是否安裝」改為「瀏覽器是否真的能啟動」，
+         啟動失敗視為 skip 並提示 npx playwright install chromium。
+         靜態檢查不受影響，仍照常執行且任一項不過即以非 0 結束
+         （已驗證 skip 不會遮蔽真正的失敗）。
+
+升級 vitest 2.1.9 → 3.2.7
+
+   問題: npm audit 回報 5 個弱點（1 critical、1 high、3 moderate），全數來自
+         vitest 2.1.9 內嵌的 vite 5.4.21 及其 esbuild。頂層 vite 6.4.3 與
+         esbuild 0.25.12 本身不受影響，產物 index.html 亦不含任何受影響套件，
+         但其中兩個 vite advisory 是 Windows 專屬（UNC 路徑洩漏 NTLMv2 hash、
+         server.fs.deny 繞過），對在 Windows 上開發者有實質風險。
+   修正: vitest 升至 3.2.7，不再內嵌舊版 vite，改用頂層 6.4.3。
+         npm audit 為 0 vulnerabilities，109 項測試無須改動即全數通過。
+         未採用 npm audit fix --force 建議的 vitest@4（非必要的破壞性升級）。
+
+📌 Known Issues
+
+- 預設資料中 `1” Braided Silicone Tubing Set` 未被任何 Pattern 的 Zone 收錄，
+  計算時會列為 Unassignable。（已由測試釘住，資料修正後測試會提醒更新文件）
+
+
+================================================================================
+[Planned] 後續規劃
+================================================================================
+
+- 品項數量極大時，把回溯搜尋移到 Web Worker，避免計算期間卡住 UI。
+- 預設資料中未被任何 Pattern 收錄的品項，需由領域負責人確認應歸屬哪個 Zone。
+
+
+================================================================================
 [v30.8] - 2025-05-20 (Stable Release)
+================================================================================
 
 🐛 Bug Fixes (錯誤修復)
 
@@ -41,3 +262,25 @@ Changelog
 功能: 保留了「Include Stock (包含庫存品)」選項與手動清單防遺失機制。
 
 此版本建議作為穩定版 (Stable Build) 部署。
+
+
+================================================================================
+[v29.1]
+================================================================================
+
+Fix: 修正 React key 重複錯誤。解決了當 Catalog 中存在標準化名稱相同但 ID 不同的項目時，下拉選單渲染報錯的問題。
+
+Optimization: 採用 Set 進行選單與規則的去重複處理，提升穩定性。
+
+
+================================================================================
+[v29.0]
+================================================================================
+
+Feature: 完成 Planner 與 Autoclave 的核心整合。
+
+Refactor: 將 AutoclaveModule 的狀態提升 (State Lifting) 至頂層 App，解決切換分頁導致手動加入物品清單遺失的問題。
+
+Perf: 將滅菌演算法改為 useMemo 觸發，減少不必要的渲染。
+
+Feature: 新增「Include Stock」選項，允許將庫存品強制納入滅菌計算。

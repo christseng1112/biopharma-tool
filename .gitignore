@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.vite/
+
+# Build/test output
+coverage/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local config exports produced by the tool
+biopharma_prod_config*.json
+Picking_List*.html
+Assembly_Guide*.html
