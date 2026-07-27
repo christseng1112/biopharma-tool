@@ -53,7 +53,9 @@ export function App() {
     useEffect(() => { if (stageList.length > 0 && !targetStage) setTargetStage(stageList[0]); }, [stageList, targetStage]);
     useEffect(() => { const keys = Object.keys(dbCatalog); if (keys.length > 0) { if (!selectedTubingId || !dbCatalog[selectedTubingId]) setSelectedTubingId(keys[0]); } }, [dbCatalog, selectedTubingId]);
     const selectedTubingData = dbCatalog[selectedTubingId] || {};
-    const stockCodeExists = !!(selectedTubingData.Stock_Code && selectedTubingData.Stock_Code.trim() !== "");
+    // Stock_Code comes from an editable field and from imported JSON, so it is
+    // not necessarily a string — calling .trim() on a number threw.
+    const stockCodeExists = String(selectedTubingData.Stock_Code ?? "").trim() !== "";
     // Fix: ensure useStock updates reliably when tubing changes
     useEffect(() => {
         setUseStock(prev => stockCodeExists);
@@ -302,7 +304,7 @@ export function App() {
                         </div>
                     )}
                     {activeTab === 'autoclave' && <AutoclaveModule plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
-                    {activeTab === 'database' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
+                    {activeTab === 'database' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} dbBom={dbBom} setDbBom={setDbBom} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} assignments={assignments} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
                 </div>
             </div>
         </div>

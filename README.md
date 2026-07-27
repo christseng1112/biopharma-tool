@@ -29,6 +29,11 @@
 - **混合排程**：支援自動匯入的管組 (Group A) 與手動加入的器具配件 (Group B) 混合計算。
 - **智慧排程演算法**：根據預設的滅菌模式 (Pattern 1-10) 與區域限制 (Zone Rules)，自動計算最少所需的滅菌循環次數。
 - **複雜規則檢核**：支援進階限制邏輯（例如：某區域雖然容量為 6，但剪刀最多只能放 2 把）。
+- **結果具決定性**：候選排序為「受 rule 限制者優先 → 數量遞減 → 名稱」，同一組品項無論加入順序為何都得到相同排程。
+- **標示解的品質**：排程標題旁的徽章顯示
+  - **最佳解 (Optimal)** — 已窮舉搜尋，不存在更短的排程
+  - **近似解 (Heuristic)** — 品項過多或搜尋預算用盡，僅提供貪婪解
+  - **不完整 (Incomplete)** — 有品項未能排入，請見下方警示
 - **未排程項目一律回報**，分為兩類：
   - **Unassignable**：沒有任何 Pattern 的 Zone 允許此品項。
   - **Not Scheduled**：超出 100 循環上限，未排入任何批次。
@@ -37,7 +42,8 @@
 
 - **設定檔管理**：支援 JSON 格式的完整設定匯出與匯入 (Export/Import)。匯入前會先做結構驗證，格式不符時**不會套用任何資料**，並在畫面上列出具體錯誤。
 - **自動存檔**：變更後 1 秒自動寫入瀏覽器 localStorage（key：`BIOPHARMA_AUTOSAVE`）。若存檔毀損或格式不符，原始內容會被備份到 `BIOPHARMA_AUTOSAVE_CORRUPT_<timestamp>` 並於畫面提示，不會被靜默覆蓋。
-- **資料庫編輯器**：內建 GUI 介面，可直接修改元件庫 (Components)、目錄 (Catalog)、裝配圖 (Diagrams) 與滅菌模式 (Patterns)。
+- **資料庫編輯器**：內建 GUI 介面，可新增／修改／刪除元件庫 (Components) 與目錄 (Catalog)，並編輯裝配圖 (Diagrams)、BOM 與滅菌模式 (Patterns)。刪除前會檢查是否仍被 BOM 或 Assignment 引用，被引用時拒絕刪除。
+- **錯誤處理**：渲染錯誤由 React Error Boundary 接住並顯示錯誤內容與復原選項，不會變成空白畫面；其餘錯誤由頁面內橫幅呈現。全程不使用 `alert()`。
 
 ---
 
@@ -71,7 +77,8 @@ src/
   lib/download.js           檔案下載
   lib/globalErrorHandler.js 全域錯誤安全網
   data/defaults.js          預設資料集
-  components/               Icons、三個編輯器、AutoclaveModule、App
+  components/               Icons、Notice、ErrorBoundary、三個編輯器、
+                            AutoclaveModule、App
   main.jsx                  進入點
   styles.css                Tailwind directives + 專案樣式
 tests/                      Vitest 測試
@@ -103,13 +110,15 @@ npm run check           # test + build + verify:offline
    - 系統會提示該項目是否為庫存品。
 3. **📋 Picking List / 📦 Assembly Guide**
    - 查看並下載領料單與組裝工單。
+   - 每份報表的標題下方均附有來源區塊：產生時間、工具版本、資料來源，以及「非受控文件」聲明。
 4. **🌡️ Autoclave Calc**
    - 系統會自動帶入 Plan 分頁中需要組裝的管組。
    - 若有額外器具 (如鑷子、濾器)，可在左側手動加入。
    - 系統即時計算並顯示滅菌排程建議。
    - **請務必檢查是否出現 Unassignable 或 Not Scheduled 區塊** — 這些品項不在排程中。
 5. **⚙️ Database**
-   - 編輯元件庫、目錄與裝配邏輯。
+   - 新增／編輯／刪除元件庫與目錄項目，並編輯裝配圖與 BOM。
+   - 變更需按各區塊的 **Save Changes** 才會套用；結果會以區塊內的訊息列回報。
 6. **保存**：點擊左側 Sidebar 的 Export 下載 JSON 檔以保存當前進度。
 
 ---
@@ -122,7 +131,7 @@ npm run check           # test + build + verify:offline
 
 ## 📝 注意事項
 
-- 本工具運行於客戶端瀏覽器，除了載入上述 CDN 資源外不會上傳任何數據至外部伺服器。
+- 本工具完全運行於客戶端瀏覽器，不發出任何外部請求，也不會上傳任何數據。
 - 產生的 Picking List 與 Assembly Guide 是工具自動產生的參考文件，**非受控文件**；正式生產請依所屬品質系統的受控文件作業。
 - 預設資料中的 `1” Braided Silicone Tubing Set` 未被任何滅菌 Pattern 的 Zone 收錄，計算時會被列為 Unassignable。若需納入排程，請於 Database 分頁將其加入對應 Zone 的允許清單。
 

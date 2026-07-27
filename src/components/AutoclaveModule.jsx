@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Icons } from './Icons.jsx';
 import { normalizeName } from '../lib/normalize.js';
-import { calculateSchedule, MAX_CYCLES } from '../lib/scheduler.js';
+import { calculateSchedule, MAX_CYCLES, QUALITY } from '../lib/scheduler.js';
 
 export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, setPatternsList, inventoryB, setInventoryB, manualCart, setManualCart }) => {
     const [selectedItem, setSelectedItem] = useState("");
@@ -24,8 +24,33 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
         return queue;
     }, [plannerAssignments, includeStock]);
 
-    const combinedCart = useMemo(() => [...plannerQueue, ...manualCart], [plannerQueue, manualCart]);
-    const { schedule, unassignable, unscheduled } = useMemo(() => calculateSchedule(combinedCart, patternsList), [combinedCart, patternsList]);
+    // Merge by item name. The planner queue and the manual queue can name the
+    // same thing (Forceps from the plan, Forceps added by hand); leaving them as
+    // two rows made the totals and the load plan confusing to read back.
+    const combinedCart = useMemo(() => {
+        const merged = new Map();
+        [...plannerQueue, ...manualCart].forEach(({ item, qty, source }) => {
+            const existing = merged.get(item);
+            if (existing) {
+                existing.qty += qty;
+                if (existing.source !== source) existing.source = 'planner+manual';
+            } else {
+                merged.set(item, { item, qty, source });
+            }
+        });
+        return [...merged.values()];
+    }, [plannerQueue, manualCart]);
+
+    const { schedule, unassignable, unscheduled, quality } = useMemo(
+        () => calculateSchedule(combinedCart, patternsList),
+        [combinedCart, patternsList]
+    );
+
+    const qualityBadge = {
+        [QUALITY.OPTIMAL]: { label: '最佳解 (Optimal)', title: '已窮舉搜尋，不存在更短的排程', className: 'bg-green-100 text-green-800 border-green-300' },
+        [QUALITY.HEURISTIC]: { label: '近似解 (Heuristic)', title: '品項過多或搜尋預算用盡，僅提供貪婪解；實際可能存在更短的排程', className: 'bg-amber-100 text-amber-800 border-amber-300' },
+        [QUALITY.INCOMPLETE]: { label: '不完整 (Incomplete)', title: '有品項未能排入任何批次，請見下方警示', className: 'bg-red-100 text-red-800 border-red-300' }
+    }[quality];
 
     // A2: same guard as the planner — a blank field must not become NaN.
     const qtyValue = parseInt(quantity, 10);
@@ -87,7 +112,15 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
             </div>
             <div className="lg:col-span-2 space-y-6">
                 <div className="bg-white p-6 rounded-lg shadow-sm min-h-[400px] border">
-                    <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b pb-2"><Icons.Package className="w-5 h-5 text-blue-600" /> Sterilization Schedule (Total: {combinedCart.reduce((a, c) => a + c.qty, 0)})</h2>
+                    <h2 className="text-lg font-semibold mb-6 flex flex-wrap items-center gap-2 border-b pb-2">
+                        <Icons.Package className="w-5 h-5 text-blue-600" />
+                        <span>Sterilization Schedule (Total: {combinedCart.reduce((a, c) => a + c.qty, 0)})</span>
+                        {schedule.length > 0 && (
+                            <span className={`text-xs font-normal px-2 py-1 rounded-full border cursor-help ${qualityBadge.className}`} title={qualityBadge.title}>
+                                {schedule.length} cycles · {qualityBadge.label}
+                            </span>
+                        )}
+                    </h2>
                     {schedule.length === 0 && unassignable.length === 0 && unscheduled.length === 0 ? (<div className="text-center py-12 text-gray-400"><Icons.Info className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>Add items to generate schedule</p></div>) : (
                         <div className="space-y-6">
                             {unassignable.length > 0 && (<div className="bg-red-50 border border-red-200 rounded-lg p-4"><h3 className="text-red-800 font-bold flex items-center gap-2"><Icons.AlertCircle className="w-4 h-4" /> Unassignable Items <span className="font-normal text-xs">— 沒有任何 Pattern 的 Zone 允許此品項</span></h3><ul className="list-disc list-inside mt-2 text-xs text-red-700">{unassignable.map((u, i) => <li key={i}>{u.item} (x{u.qty})</li>)}</ul></div>)}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { simulateLoad, runGreedySimulation, calculateSchedule, MAX_CYCLES } from '../src/lib/scheduler.js';
+import { simulateLoad, runGreedySimulation, calculateSchedule, MAX_CYCLES, QUALITY } from '../src/lib/scheduler.js';
 import { normalizePatterns, normalizeName } from '../src/lib/normalize.js';
 import { DEFAULT_AUTOCLAVE_PATTERNS_DATA, DEFAULT_CATALOG, DEFAULT_AUTOCLAVE_GROUP_B } from '../src/data/defaults.js';
 
@@ -117,6 +117,7 @@ describe('calculateSchedule', () => {
         expect(r.unassignable).toEqual([{ item: 'Gadget', qty: 2 }]);
         expect(r.unscheduled).toEqual([]);
         expect(r.schedule).toEqual([]);
+        expect(r.quality).toBe(QUALITY.INCOMPLETE);
     });
 
     it('puts items that exceed the cycle ceiling into unscheduled, not unassignable', () => {
@@ -124,11 +125,12 @@ describe('calculateSchedule', () => {
         expect(r.unassignable).toEqual([]);
         expect(total(r.unscheduled)).toBe(25);
         expect(r.schedule).toHaveLength(MAX_CYCLES);
+        expect(r.quality).toBe(QUALITY.INCOMPLETE);
     });
 
     it('returns empty buckets for empty input', () => {
         expect(calculateSchedule([], [pattern([{ name: 'Z', capacity: 1, allowed: ['W'] }])]))
-            .toEqual({ schedule: [], unassignable: [], unscheduled: [] });
+            .toEqual({ schedule: [], unassignable: [], unscheduled: [], quality: QUALITY.OPTIMAL });
     });
 
     it('numbers cycles from 1', () => {
@@ -206,5 +208,80 @@ describe('default dataset', () => {
         const inventory = [...new Set(DEFAULT_AUTOCLAVE_GROUP_B.map(normalizeName))].map(item => ({ item, qty: 1 }));
         const r = calculateSchedule(inventory, patterns);
         expect(r.unscheduled).toEqual([]);
+    });
+});
+
+describe('determinism', () => {
+    // The same set of items must produce the same schedule regardless of the
+    // order the operator happened to add them in.
+    const patterns = [
+        pattern([{ name: 'Z1', capacity: 3, allowed: ['A', 'B', 'C'] }, { name: 'Z2', capacity: 2, allowed: ['B', 'C'] }], 1),
+        pattern([{ name: 'Z', capacity: 4, allowed: ['A', 'B'] }], 2)
+    ];
+    const items = [{ item: 'A', qty: 4 }, { item: 'B', qty: 7 }, { item: 'C', qty: 3 }];
+
+    const permutations = (xs) => xs.length <= 1 ? [xs]
+        : xs.flatMap((x, i) => permutations([...xs.slice(0, i), ...xs.slice(i + 1)]).map(p => [x, ...p]));
+
+    it('produces an identical schedule for every input ordering', () => {
+        const results = permutations(items).map(inv => calculateSchedule(inv, patterns));
+        const first = JSON.stringify(results[0]);
+        results.forEach(r => expect(JSON.stringify(r)).toBe(first));
+    });
+
+    it('orders unrestricted zone candidates by quantity, then by name', () => {
+        const r = simulateLoad(
+            [{ item: 'Zebra', qty: 1 }, { item: 'Apple', qty: 5 }, { item: 'Mango', qty: 1 }],
+            pattern([{ name: 'Z', capacity: 6, allowed: ['Apple', 'Mango', 'Zebra'] }])
+        );
+        // Apple (5) first, then Mango and Zebra alphabetically.
+        expect(r.loadPlan).toEqual(['[Z] 5x Apple', '[Z] 1x Mango']);
+    });
+
+    it('offers the zone to rule-capped items before unrestricted ones', () => {
+        const r = simulateLoad(
+            [{ item: 'Forceps', qty: 6 }, { item: 'Scissor', qty: 6 }],
+            pattern([{ name: 'Z', capacity: 6, allowed: ['Forceps', 'Scissor'], rules: [{ items: ['Scissor'], max: 2 }] }])
+        );
+        expect(r.loadPlan).toEqual(['[Z] 2x Scissor', '[Z] 4x Forceps']);
+    });
+
+    it('constrained-first packing needs fewer cycles than unrestricted-first', () => {
+        // Filling the zone with forceps first would strand the capped scissors
+        // into a fourth cycle.
+        const r = calculateSchedule(
+            [{ item: 'Forceps', qty: 6 }, { item: 'Scissor', qty: 6 }],
+            [pattern([{ name: 'Z', capacity: 6, allowed: ['Forceps', 'Scissor'], rules: [{ items: ['Scissor'], max: 2 }] }])]
+        );
+        expect(r.schedule).toHaveLength(3);
+        expect(r.unscheduled).toEqual([]);
+    });
+});
+
+describe('result quality', () => {
+    it('reports optimal when the exhaustive search completed', () => {
+        const r = calculateSchedule([{ item: 'W', qty: 5 }], [pattern([{ name: 'Z', capacity: 2, allowed: ['W'] }])]);
+        expect(r.quality).toBe(QUALITY.OPTIMAL);
+    });
+
+    it('reports heuristic when there are too many items to search', () => {
+        const r = calculateSchedule([{ item: 'W', qty: 60 }], [pattern([{ name: 'Z', capacity: 5, allowed: ['W'] }])]);
+        expect(r.quality).toBe(QUALITY.HEURISTIC);
+        expect(r.unscheduled).toEqual([]);
+        expect(r.schedule).toHaveLength(12);
+    });
+
+    it('reports incomplete whenever anything could not be placed', () => {
+        const r = calculateSchedule(
+            [{ item: 'W', qty: 2 }, { item: 'Nope', qty: 1 }],
+            [pattern([{ name: 'Z', capacity: 2, allowed: ['W'] }])]
+        );
+        expect(r.quality).toBe(QUALITY.INCOMPLETE);
+    });
+
+    it('does not claim optimal for a greedy-only answer', () => {
+        // 60 items is above BACKTRACK_ITEM_LIMIT, so no search runs.
+        const r = calculateSchedule([{ item: 'W', qty: 60 }], [pattern([{ name: 'Z', capacity: 7, allowed: ['W'] }])]);
+        expect(r.quality).not.toBe(QUALITY.OPTIMAL);
     });
 });

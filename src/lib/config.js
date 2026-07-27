@@ -35,9 +35,30 @@ export const validateConfig = (data) => {
         if (db.catalog !== undefined && !isPlainObject(db.catalog)) errors.push("database.catalog 必須是物件 (SOP No. -> {Name, Stock_Code})");
         if (db.diagrams !== undefined && !isPlainObject(db.diagrams)) errors.push("database.diagrams 必須是物件 (SOP No. -> string)");
         if (db.bom !== undefined && !isPlainObject(db.bom)) errors.push("database.bom 必須是物件 (SOP No. -> 陣列)");
+
+        // Entry shapes matter as much as container shapes: a null catalog entry
+        // passes an "is it an object" check and then throws during render.
+        if (isPlainObject(db.components)) {
+            Object.entries(db.components).forEach(([k, v]) => {
+                if (!isPlainObject(v)) errors.push(`database.components["${k}"] 必須是物件 {Name, Unit}`);
+            });
+        }
+        if (isPlainObject(db.catalog)) {
+            Object.entries(db.catalog).forEach(([k, v]) => {
+                if (!isPlainObject(v)) errors.push(`database.catalog["${k}"] 必須是物件 {Name, Stock_Code}`);
+            });
+        }
+        if (isPlainObject(db.diagrams)) {
+            Object.entries(db.diagrams).forEach(([k, v]) => {
+                if (v !== null && typeof v !== 'string') errors.push(`database.diagrams["${k}"] 必須是字串`);
+            });
+        }
         if (isPlainObject(db.bom)) {
             Object.entries(db.bom).forEach(([k, v]) => {
-                if (!Array.isArray(v)) errors.push(`database.bom["${k}"] 必須是陣列`);
+                if (!Array.isArray(v)) { errors.push(`database.bom["${k}"] 必須是陣列`); return; }
+                v.forEach((part, i) => {
+                    if (!isPlainObject(part)) errors.push(`database.bom["${k}"][${i}] 必須是物件 {Code, Len?, Count?}`);
+                });
             });
         }
         const ac = db.autoclave;

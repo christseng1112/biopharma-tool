@@ -118,3 +118,31 @@ describe('importing an un-normalized config', () => {
         expect(withNormalizing.schedule).toHaveLength(1);
     });
 });
+
+describe('validateConfig — entry shapes', () => {
+    const rejects = (data, match) => {
+        const r = validateConfig(data);
+        expect(r.ok).toBe(false);
+        expect(r.errors.join(' ')).toMatch(match);
+    };
+
+    // A null entry passes an "is the container an object" check and then throws
+    // during render, which is what the ErrorBoundary exists to catch. Catching
+    // it at import time is better than catching it after the screen goes blank.
+    it('a null catalog entry', () => rejects({ database: { catalog: { 1: null } } }, /catalog\["1"\]/));
+    it('a string catalog entry', () => rejects({ database: { catalog: { 1: 'Set One' } } }, /catalog\["1"\]/));
+    it('a null component entry', () => rejects({ database: { components: { B1: null } } }, /components\["B1"\]/));
+    it('a non-string diagram', () => rejects({ database: { diagrams: { 1: { a: 1 } } } }, /diagrams\["1"\]/));
+    it('a non-object bom part', () => rejects({ database: { bom: { 1: ['B1'] } } }, /bom\["1"\]\[0\]/));
+
+    it('accepts a null diagram and a null Stock_Code', () => {
+        const r = validateConfig({
+            database: { diagrams: { 1: null }, catalog: { 1: { Name: 'X', Stock_Code: null } } }
+        });
+        expect(r.errors).toEqual([]);
+    });
+
+    it('still accepts the default payload after the extra checks', () => {
+        expect(validateConfig(defaultPayload()).errors).toEqual([]);
+    });
+});

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { Notice, useNotice } from './Notice.jsx';
 
 export const LogicEditor = ({ dbCatalog, dbDiagrams, setDbDiagrams, dbBom, setDbBom, dbComponents }) => {
     const [selectedSop, setSelectedSop] = useState("");
     const [diagram, setDiagram] = useState("");
     const [bom, setBom] = useState([]);
+    const [notice, showNotice] = useNotice();
 
     useEffect(() => {
         const keys = Object.keys(dbCatalog);
@@ -41,9 +43,15 @@ export const LogicEditor = ({ dbCatalog, dbDiagrams, setDbDiagrams, dbBom, setDb
                 Count: Number.isFinite(parseInt(item.Count, 10)) ? parseInt(item.Count, 10) : 1
             }))
             .filter(item => item.Count > 0);
+        const dropped = bom.length - cleanBom.length;
         setDbDiagrams({ ...dbDiagrams, [selectedSop]: diagram });
         setDbBom({ ...dbBom, [selectedSop]: cleanBom });
-        alert("Logic Updated!");
+        showNotice(
+            dropped > 0
+                ? `✅ No. ${selectedSop} 已更新（${dropped} 列因 Count 為 0 而未儲存）。`
+                : `✅ No. ${selectedSop} 已更新。`,
+            dropped > 0 ? 'info' : 'success'
+        );
     };
 
     if (!selectedSop && Object.keys(dbCatalog).length === 0) return <div>No Catalog items.</div>;
@@ -51,6 +59,7 @@ export const LogicEditor = ({ dbCatalog, dbDiagrams, setDbDiagrams, dbBom, setDb
     return (
         <div className="border p-4 mb-4 rounded">
             <h4 className="font-bold mb-2">🛠️ 3. Assembly Logic</h4>
+            <Notice notice={notice} />
             <div className="flex gap-4 mb-4">
                 <div className="w-1/3">
                     <label className="text-sm font-bold block mb-1">Select Tubing Set</label>
