@@ -70,8 +70,26 @@ export const validateConfig = (data) => {
                     if (!isPlainObject(p)) { errors.push(`patterns[${i}] 必須是物件`); return; }
                     if (!Array.isArray(p.zones)) { errors.push(`patterns[${i}].zones 必須是陣列`); return; }
                     p.zones.forEach((z, j) => {
-                        if (!isPlainObject(z)) errors.push(`patterns[${i}].zones[${j}] 必須是物件`);
-                        else if (!Array.isArray(z.allowed)) errors.push(`patterns[${i}].zones[${j}].allowed 必須是陣列`);
+                        if (!isPlainObject(z)) { errors.push(`patterns[${i}].zones[${j}] 必須是物件`); return; }
+                        if (!Array.isArray(z.allowed)) errors.push(`patterns[${i}].zones[${j}].allowed 必須是陣列`);
+                        if (z.capacity !== undefined && !Number.isFinite(z.capacity)) {
+                            errors.push(`patterns[${i}].zones[${j}].capacity 必須是數字`);
+                        }
+                        // A rule missing `max` makes ruleCapFor return NaN, and the
+                        // zone then silently refuses the item forever. Reject it at
+                        // the door instead of letting the schedule come out wrong.
+                        if (z.rules !== undefined) {
+                            if (!Array.isArray(z.rules)) {
+                                errors.push(`patterns[${i}].zones[${j}].rules 必須是陣列`);
+                            } else {
+                                z.rules.forEach((r, k) => {
+                                    const at = `patterns[${i}].zones[${j}].rules[${k}]`;
+                                    if (!isPlainObject(r)) { errors.push(`${at} 必須是物件 {items, max}`); return; }
+                                    if (!Array.isArray(r.items)) errors.push(`${at}.items 必須是陣列`);
+                                    if (!Number.isFinite(r.max)) errors.push(`${at}.max 必須是數字`);
+                                });
+                            }
+                        }
                     });
                 });
             }

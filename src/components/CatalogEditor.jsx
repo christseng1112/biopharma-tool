@@ -12,8 +12,14 @@ export const CatalogEditor = ({ dbCatalog, setDbCatalog, dbBom, dbDiagrams, setD
     const [newName, setNewName] = useState("");
     const [newStockCode, setNewStockCode] = useState("");
     const [notice, showNotice] = useNotice();
+    // SOP numbers whose BOM and diagram go away when Save Changes is pressed.
+    // Deletion used to remove the catalog entry locally but drop the BOM and
+    // diagram immediately, so abandoning the edit left a catalog entry with no
+    // BOM — which then silently vanished from the assembly guide. Everything is
+    // staged together now and committed together.
+    const [pendingDeletes, setPendingDeletes] = useState([]);
 
-    useEffect(() => { setLocalCat(dbCatalog); }, [dbCatalog]);
+    useEffect(() => { setLocalCat(dbCatalog); setPendingDeletes([]); }, [dbCatalog]);
 
     const nextSopNo = () => {
         const ids = Object.keys(localCat).map(k => parseInt(k, 10)).filter(Number.isFinite);
@@ -37,20 +43,23 @@ export const CatalogEditor = ({ dbCatalog, setDbCatalog, dbBom, dbDiagrams, setD
             showNotice(`⛔ 無法刪除 No. ${key}：目前有 ${used.length} 筆 Assignment 正在使用。`, 'error');
             return;
         }
-        if (!window.confirm(`刪除 No. ${key}「${localCat[key]?.Name ?? ''}」？其 BOM 與示意圖也會一併移除。`)) return;
+        if (!window.confirm(`刪除 No. ${key}「${localCat[key]?.Name ?? ''}」？其 BOM 與示意圖會在按下 Save Changes 時一併移除。`)) return;
 
         const cat = { ...localCat }; delete cat[key];
         setLocalCat(cat);
-
-        const bom = { ...dbBom }; delete bom[key];
-        const diagrams = { ...dbDiagrams }; delete diagrams[key];
-        setDbBom(bom);
-        setDbDiagrams(diagrams);
+        setPendingDeletes(prev => [...new Set([...prev, String(key)])]);
         showNotice(`已移除 No. ${key}，請按 Save Changes 套用。`, 'info');
     };
 
     const handleCommit = () => {
+        const bom = { ...dbBom };
+        const diagrams = { ...dbDiagrams };
+        pendingDeletes.forEach(key => { delete bom[key]; delete diagrams[key]; });
+
         setDbCatalog(localCat);
+        setDbBom(bom);
+        setDbDiagrams(diagrams);
+        setPendingDeletes([]);
         showNotice('✅ Catalog 已更新。', 'success');
     };
 
@@ -60,6 +69,18 @@ export const CatalogEditor = ({ dbCatalog, setDbCatalog, dbBom, dbDiagrams, setD
         <div className="border p-4 mb-4 rounded">
             <h4 className="font-bold mb-2">📂 2. Manage Catalog</h4>
             <Notice notice={notice} />
+            {/* Autoclave zones match items by name, and each assignment stores the
+                name it was created with. A rename here therefore silently detaches
+                the item from its zones until they are updated too. */}
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 mb-2">
+                ⚠️ 修改名稱時請注意：滅菌 Pattern 的 Zone 是以<strong>名稱</strong>比對品項。
+                改名後需同步更新 Autoclave 分頁中對應 Zone 的允許清單，否則該品項會被列為 Unassignable。
+            </p>
+            {pendingDeletes.length > 0 && (
+                <p className="text-xs text-red-800 bg-red-50 border border-red-200 rounded p-2 mb-2">
+                    待刪除：No. {pendingDeletes.join('、')} — 按下 <strong>Save Changes</strong> 後其 BOM 與示意圖才會一併移除。
+                </p>
+            )}
             <div className="h-64 overflow-y-auto mb-2 border">
                 <table className="w-full text-sm">
                     <thead className="bg-gray-100 sticky top-0">

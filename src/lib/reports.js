@@ -84,6 +84,17 @@ export function generateAssemblyGuideHTML(stageList, tasks, customBomMap, compon
             const rowSpan = jsonBom.length > 0 ? jsonBom.length : 1;
             let isFirstRow = true;
 
+            // A set whose BOM has no rows used to produce no row at all: the
+            // whole item silently vanished from the work order, so nobody on
+            // the floor would know it needed assembling. Emit the row and say
+            // plainly that the BOM is missing.
+            if (jsonBom.length === 0) {
+                htmlParts.push('<tr>');
+                htmlParts.push(`<td rowspan="1" class="text-center"><b>No. ${escapeHtml(sopId)}</b><br><span style="font-size:0.9em;">${escapeHtml(t["Name"])}</span><br><div class="diagram-code">${safeDiagram}</div></td><td rowspan="1" class="text-center" style="font-size:1.1em; font-weight:bold;">${escapeHtml(qtySets)}</td>`);
+                htmlParts.push('<td colspan="4" style="color:#8a2b2b; font-weight:bold;">⚠️ 此品項尚未定義 BOM (no BOM defined) — 無法產生物料明細，請於 Database 分頁補齊。</td></tr>');
+                return;
+            }
+
             jsonBom.forEach(part => {
                 const pCode = part['Code'];
                 const matInfo = componentsDb[pCode] || { 'Name': 'Unknown' };
@@ -117,7 +128,6 @@ export function generateAssemblyGuideHTML(stageList, tasks, customBomMap, compon
 export function generatePickingListHTML(tasks, customBomMap, componentsDb, catalogDb, provenance = {}) {
     const rawMaterialTotals = {};
     const stockSetTotals = {};
-    const isCodeTubing = {};
 
     tasks.forEach(t => {
         if (t.Is_Stock) {
@@ -129,20 +139,23 @@ export function generatePickingListHTML(tasks, customBomMap, componentsDb, catal
             bom.forEach(part => {
                 const pCode = part.Code;
                 const isTubing = Object.prototype.hasOwnProperty.call(part, 'Len') && part.Len > 0;
-                isCodeTubing[pCode] = (isCodeTubing[pCode] || isTubing);
                 const segCount = part.Count || 1;
                 const totalNeeded = segCount * t.Qty;
 
                 if (!rawMaterialTotals[pCode]) {
-                    rawMaterialTotals[pCode] = { Total: 0, Details: {} };
+                    // Length and piece counts are tracked separately. A single
+                    // total used to hold both, so a code used as tubing in one
+                    // BOM and as a fitting in another produced "30 cm + 1 ea"
+                    // printed as "31 cm" — a number that means nothing.
+                    rawMaterialTotals[pCode] = { lengthCm: 0, pieces: 0, Details: {} };
                 }
 
                 if (isTubing) {
-                    rawMaterialTotals[pCode].Total += (part.Len * totalNeeded);
+                    rawMaterialTotals[pCode].lengthCm += (part.Len * totalNeeded);
                     const lenKey = part.Len;
                     rawMaterialTotals[pCode].Details[lenKey] = (rawMaterialTotals[pCode].Details[lenKey] || 0) + totalNeeded;
                 } else {
-                    rawMaterialTotals[pCode].Total += totalNeeded;
+                    rawMaterialTotals[pCode].pieces += totalNeeded;
                 }
             });
         }
@@ -158,16 +171,23 @@ export function generatePickingListHTML(tasks, customBomMap, componentsDb, catal
         htmlParts.push('<div class="picking-title">A. Raw Materials (自製耗材總表)</div>');
         htmlParts.push('<table class="custom-table"><thead><tr><th style="width:15%;">Material Code</th><th style="width:40%;">Material Name / Description</th><th style="width:25%;">Total Quantity Needed</th><th style="width:20%;">Cutting Details (Tubing)</th></tr></thead><tbody>');
 
+        const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+
         Object.keys(rawMaterialTotals).sort().forEach(code => {
             const data = rawMaterialTotals[code];
-            const total = data.Total;
             const matInfo = componentsDb[code] || { 'Name': 'Unknown', 'Unit': '?' };
-            const isTubing = isCodeTubing[code];
-            const unit = isTubing ? "cm" : "ea";
+            const isTubing = data.lengthCm > 0;
+            const hasPieces = data.pieces > 0;
 
-            const qtyDisplay = unit === "cm"
-                ? `<b>${total.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${unit}</b>`
-                : `${total.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${unit}`;
+            const parts = [];
+            if (isTubing) parts.push(`<b>${fmt(data.lengthCm)} cm</b>`);
+            if (hasPieces) parts.push(`${fmt(data.pieces)} ea`);
+            // Neither is a real case (a BOM row always contributes to one of
+            // them), but showing 0 ea beats showing an empty cell.
+            let qtyDisplay = parts.length > 0 ? parts.join('<br>') : '0 ea';
+            if (isTubing && hasPieces) {
+                qtyDisplay += `<br><span class='total-detail' style="color:#8a2b2b;">⚠️ 此料號同時以管材與配件計量，請分別領取</span>`;
+            }
 
             let detailHtml = "-";
             if (isTubing && Object.keys(data.Details).length > 0) {

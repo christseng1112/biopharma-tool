@@ -47,7 +47,11 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
     );
 
     const qualityBadge = {
-        [QUALITY.OPTIMAL]: { label: '最佳解 (Optimal)', title: '已窮舉搜尋，不存在更短的排程', className: 'bg-green-100 text-green-800 border-green-300' },
+        // The search enumerates sequences of patterns; the packing inside each
+        // cycle is fixed by simulateLoad. So what is proven is "no shorter
+        // sequence of patterns under this packing rule" — not "no shorter
+        // schedule exists at all". Say what is actually proven.
+        [QUALITY.OPTIMAL]: { label: '最佳解 (Optimal)', title: '已窮舉所有 Pattern 組合：在目前的裝填規則下沒有更短的排程', className: 'bg-green-100 text-green-800 border-green-300' },
         [QUALITY.HEURISTIC]: { label: '近似解 (Heuristic)', title: '品項過多或搜尋預算用盡，僅提供貪婪解；實際可能存在更短的排程', className: 'bg-amber-100 text-amber-800 border-amber-300' },
         [QUALITY.INCOMPLETE]: { label: '不完整 (Incomplete)', title: '有品項未能排入任何批次，請見下方警示', className: 'bg-red-100 text-red-800 border-red-300' }
     }[quality];
@@ -76,6 +80,15 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
     const handleAddZone = (pid) => setPatternsList(patternsList.map(p => p.id === pid ? { ...p, zones: [...p.zones, { name: "New Zone", capacity: 1, allowed: [] }] } : p));
     const handleDeleteZone = (pid, zidx) => setPatternsList(patternsList.map(p => { if (p.id !== pid) return p; const nz = [...p.zones]; nz.splice(zidx, 1); return { ...p, zones: nz }; }));
     const handleUpdateZone = (pid, zidx, f, v) => setPatternsList(patternsList.map(p => { if (p.id !== pid) return p; const nz = [...p.zones]; nz[zidx] = { ...nz[zidx], [f]: v }; return { ...p, zones: nz }; }));
+
+    // Same guard as the quantity inputs: clearing a number field yields NaN,
+    // and a zone with NaN capacity accepts nothing at all — the items surface
+    // as "Not Scheduled" with no hint that an empty capacity box caused it.
+    const handleUpdateZoneCapacity = (pid, zidx, raw) => {
+        if (raw === "") { handleUpdateZone(pid, zidx, 'capacity', 0); return; }
+        const n = parseInt(raw, 10);
+        if (Number.isFinite(n) && n >= 0) handleUpdateZone(pid, zidx, 'capacity', n);
+    };
     const handleAddAllowedItem = (pid, zidx, item) => {
         if (!item) return;
         setPatternsList(patternsList.map(p => {
@@ -152,7 +165,7 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
                                             <div className="space-y-2"><div className="flex justify-between items-center"><span className="text-xs font-bold">Zones</span><button onClick={() => handleAddZone(pattern.id)} className="text-xs bg-blue-100 px-2 rounded">+ Zone</button></div>
                                                 {pattern.zones.map((zone, zIdx) => (
                                                     <div key={zIdx} className="bg-white border p-2 rounded">
-                                                        <div className="flex gap-2 mb-1"><input className="flex-1 border text-xs p-1" value={zone.name} onChange={e => handleUpdateZone(pattern.id, zIdx, 'name', e.target.value)} /><input type="number" className="w-12 border text-xs p-1" value={zone.capacity} onChange={e => handleUpdateZone(pattern.id, zIdx, 'capacity', parseInt(e.target.value))} /><button onClick={() => handleDeleteZone(pattern.id, zIdx)} className="text-red-400"><Icons.Trash2 className="w-3 h-3" /></button></div>
+                                                        <div className="flex gap-2 mb-1"><input className="flex-1 border text-xs p-1" value={zone.name} onChange={e => handleUpdateZone(pattern.id, zIdx, 'name', e.target.value)} /><input type="number" min="0" className={`w-12 border text-xs p-1 ${Number.isFinite(zone.capacity) ? '' : 'border-red-400 bg-red-50'}`} value={Number.isFinite(zone.capacity) ? zone.capacity : ''} onChange={e => handleUpdateZoneCapacity(pattern.id, zIdx, e.target.value)} title="Zone capacity" /><button onClick={() => handleDeleteZone(pattern.id, zIdx)} className="text-red-400"><Icons.Trash2 className="w-3 h-3" /></button></div>
                                                         <div className="flex flex-wrap gap-1 mb-1">{zone.allowed.map(item => (<span key={item} className="text-xs bg-blue-50 text-blue-800 px-1 rounded flex items-center gap-1" title={item}>{item.slice(0, 15)}... <button onClick={() => handleRemoveAllowedItem(pattern.id, zIdx, item)}><Icons.X className="w-3 h-3" /></button></span>))}</div>
                                                         {zone.rules && zone.rules.length > 0 && (<div className="mt-2 bg-yellow-50 p-2 rounded border border-yellow-200 text-xs"><span className="font-bold text-yellow-700 block mb-1">Constraints:</span><ul className="list-disc list-inside text-yellow-800">{zone.rules.map((rule, rIdx) => rule.items && rule.max ? (<li key={rIdx}>Max <strong>{rule.max}</strong> for: {rule.items.join(", ")}</li>) : null)}</ul></div>)}
                                                         <select className="w-full text-xs border p-1" onChange={e => handleAddAllowedItem(pattern.id, zIdx, e.target.value)} value=""><option value="">+ Add Item...</option><optgroup label="Tubing">{groupAItems.map(i => <option key={i} value={i} disabled={zone.allowed.includes(i)}>{i}</option>)}</optgroup><optgroup label="Equipment">{groupBItems.map(i => <option key={i} value={i} disabled={zone.allowed.includes(i)}>{i}</option>)}</optgroup></select>

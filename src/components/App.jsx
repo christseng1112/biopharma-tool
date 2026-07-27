@@ -58,7 +58,7 @@ export function App() {
     const stockCodeExists = String(selectedTubingData.Stock_Code ?? "").trim() !== "";
     // Fix: ensure useStock updates reliably when tubing changes
     useEffect(() => {
-        setUseStock(prev => stockCodeExists);
+        setUseStock(stockCodeExists);
     }, [selectedTubingId, stockCodeExists]);
 
     // --- AUTO SAVE ---
@@ -217,14 +217,37 @@ export function App() {
         }
     };
 
-    const handleAddStage = () => { if (newStage && !stageList.includes(newStage)) { setStageList([...stageList, newStage]); setNewStage(""); } };
-    const handleRemoveStage = () => { if (delStage && delStage !== "(Select)") { setStageList(stageList.filter(s => s !== delStage)); setAssignments(assignments.filter(a => a.Stage !== delStage)); setDelStage("(Select)"); } };
+    const handleAddStage = () => {
+        // Trim so " Harvest" and "Harvest" cannot become two separate stages.
+        const name = newStage.trim();
+        if (!name || stageList.includes(name)) return;
+        setStageList([...stageList, name]);
+        setNewStage("");
+    };
+
+    const handleRemoveStage = () => {
+        if (!delStage || delStage === "(Select)") return;
+        // Removing a stage also removes everything planned under it, and there
+        // is no undo. Say how much is about to be lost before doing it.
+        const affected = assignments.filter(a => a.Stage === delStage);
+        if (affected.length > 0 && !window.confirm(
+            `刪除階段「${delStage}」將一併刪除其下 ${affected.length} 筆 Assignment，且無法復原。確定要刪除嗎？`
+        )) return;
+        setStageList(stageList.filter(s => s !== delStage));
+        setAssignments(assignments.filter(a => a.Stage !== delStage));
+        setDelStage("(Select)");
+    };
+    // Date.now() collides when two rows are added within the same millisecond:
+    // React sees duplicate keys, and deleting one row deletes both.
+    const newAssignmentId = () =>
+        (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
     // A2: reject blank / non-numeric / non-positive quantities instead of writing NaN into the plan.
     const qtyValue = parseInt(qty, 10);
     const qtyIsValid = Number.isFinite(qtyValue) && qtyValue > 0;
     const handleAddAssignment = () => {
         if (!qtyIsValid || !targetStage || !selectedTubingId) return;
-        setAssignments([...assignments, { id: Date.now(), "Stage": targetStage, "SOP No.": parseInt(selectedTubingId, 10), "Name": selectedTubingData.Name, "Qty": qtyValue, "Is_Stock": useStock, "Material_Code": useStock ? selectedTubingData.Stock_Code : null }]);
+        setAssignments([...assignments, { id: newAssignmentId(), "Stage": targetStage, "SOP No.": parseInt(selectedTubingId, 10), "Name": selectedTubingData.Name, "Qty": qtyValue, "Is_Stock": useStock, "Material_Code": useStock ? selectedTubingData.Stock_Code : null }]);
     };
     const handleDeleteAssignment = (id) => { setAssignments(assignments.filter(a => a.id !== id)); };
 

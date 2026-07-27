@@ -29,8 +29,12 @@ if (!existsSync(target)) {
 const html = readFileSync(target, 'utf8');
 
 console.log('\nStatic checks');
-const external = [...html.matchAll(/(?:src|href)\s*=\s*"(?:https?:)?\/\/[^"]*"/g)].map(m => m[0]);
-check('no external src/href references', external.length === 0, external.join('\n      '));
+const external = [
+    ...html.matchAll(/(?:src|href)\s*=\s*["'](?:https?:)?\/\/[^"']+["']/gi),
+    ...html.matchAll(/url\(\s*["']?(?:https?:)?\/\/[^)]+\)/gi),
+    ...html.matchAll(/@import\s+(?:url\()?\s*["'](?:https?:)?\/\/[^"']+["']/gi)
+].map(m => m[0]);
+check('no external references (src/href, css url(), @import)', external.length === 0, external.join('\n      '));
 
 const fetches = [...html.matchAll(/(?:fetch|XMLHttpRequest|importScripts)\s*\(\s*["'](?:https?:)?\/\//g)];
 check('no runtime requests to remote hosts', fetches.length === 0);
