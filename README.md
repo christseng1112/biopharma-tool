@@ -45,14 +45,52 @@
 
 | 項目 | 使用技術 |
 |---|---|
-| Core | React 18 (via CDN, no build step required) |
-| Styling | Tailwind CSS (via CDN) |
-| Icons | 內建 Lucide 風格 SVG + Font Awesome (via CDN) |
-| Compiler | Babel Standalone（瀏覽器端即時編譯） |
-| Architecture | Single File HTML |
+| Core | React 18（production build，建置時打包） |
+| Styling | Tailwind CSS（建置時 purge 後內嵌） |
+| Icons | 內建 Lucide 風格 inline SVG（無外部圖示字型） |
+| Build | Vite + `vite-plugin-singlefile` |
+| Test | Vitest |
+| Architecture | Single File HTML（零外部請求） |
 
-> ⚠️ **已知限制**：React、Tailwind、Babel、Font Awesome 目前皆透過外部 CDN 載入，**在完全無網路的環境中開啟本檔案會得到空白畫面**。
-> 若需在封閉內網使用，請先確認這些 CDN 可達。離線化改版已列入規劃，見 CHANGELOG 的「Planned」段落。
+> ✅ **完全離線可用**：`index.html` 內嵌所有資源，開啟時不會發出任何外部請求。
+> 可直接複製到無網路的 GMP 內網工作站，以 Chrome 或 Edge 開啟即可使用。
+> 此性質由 `npm run verify:offline` 自動驗證（見下方「開發」）。
+
+---
+
+## 🧑‍💻 開發 (Development)
+
+`index.html` 是**建置產物**，請勿直接編輯 — 原始碼在 `src/`。
+
+```
+src/
+  lib/normalize.js          normalizeName / escapeHtml / normalizePatterns
+  lib/scheduler.js          simulateLoad / runGreedySimulation / calculateSchedule
+  lib/reports.js            領料單與裝配工單的 HTML 產生器
+  lib/config.js             APP_VERSION、存檔 key、validateConfig
+  lib/download.js           檔案下載
+  lib/globalErrorHandler.js 全域錯誤安全網
+  data/defaults.js          預設資料集
+  components/               Icons、三個編輯器、AutoclaveModule、App
+  main.jsx                  進入點
+  styles.css                Tailwind directives + 專案樣式
+tests/                      Vitest 測試
+scripts/publish.mjs         把 dist/index.html 發佈為 ./index.html
+scripts/verify-offline.mjs  驗證產物真的自包含
+```
+
+```bash
+npm install
+
+npm run dev             # 開發伺服器（hot reload）
+npm test                # 執行測試
+npm run build           # 建置並更新 ./index.html
+npm run verify:offline  # 驗證產物零外部請求且能離線渲染
+npm run check           # test + build + verify:offline
+```
+
+`npm run build` 產生 `dist/index.html` 後由 `scripts/publish.mjs` 複製為根目錄的
+`index.html`；若產物中仍存在任何外部參照，publish 會直接失敗而不發佈。
 
 ---
 

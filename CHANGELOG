@@ -64,32 +64,61 @@ version 欄位與本檔案的最新版本應始終一致。
   Reset Defaults 之間重複的正規化程式碼。
 - 上述路徑的 alert() 回饋改為頁面內的錯誤 banner。
 
+🏗️ Architecture — 可測試性與離線可用性
+
+抽出純邏輯並建立測試
+
+   問題: 排程演算法與報表產生器是本工具的全部價值所在，計算的是生產用的物料
+         長度與滅菌批次，但完全沒有測試；且因全部寫在 <script type="text/babel">
+         區塊內，測試框架無法載入。
+   修正: 邏輯移至 src/ 下的 ES 模組 (normalize / scheduler / reports / config /
+         download / defaults / components)，並以 Vitest 建立 81 項測試，涵蓋
+         三分類完整性、zone rule 上限與溢位、領料單加總與切割明細一致性、
+         報表跳脫、匯出入 round-trip、未正規化設定檔的比對行為。
+         另有兩項測試釘住預設資料集的性質（catalog 全品項可完整排程；恰有一
+         項未被任何 Pattern 收錄），資料一旦變動即會顯現。
+
+離線可用 (Offline-capable)
+
+   問題: README 宣稱本工具「便於在封閉或管制的內網環境中分發與執行」，實際上
+         React、Tailwind、Babel、Font Awesome 皆由外部 CDN 載入。實測在無網路
+         環境開啟為完全空白畫面。
+   修正: 導入 Vite + vite-plugin-singlefile。React 改用 production build、
+         Babel 移至建置期（執行期不再需要編譯）、Tailwind 以 PostCSS purge 後
+         內嵌、Font Awesome 全數改用專案內既有的 inline SVG Icons。
+         產物為零外部請求的單一檔案（約 220 KB），仍可直接開檔使用。
+   驗證: scripts/verify-offline.mjs 在封鎖所有非 file:// 請求的情況下實際渲染
+         並巡覽全部分頁；scripts/publish.mjs 在偵測到任何外部參照時拒絕發佈。
+
+   注意: index.html 自本版起為建置產物，請勿直接編輯；原始碼位於 src/。
+         建置指令見 README。
+
+🐛 全域錯誤處理
+
+   搬移至模組化架構的過程中，原本位於 <head> 的 window.onerror 安全網一度遺失，
+   本版補回並改良：不再使用 alert()（render 迴圈中的錯誤會產生無法關閉的連續
+   對話框），改為頁面內可關閉的錯誤橫幅，並額外攔截 unhandledrejection。
+
 🧹 Housekeeping
 
 - 建立單一版本來源 APP_VERSION，畫面標題、H1 與匯出檔皆引用之。
 - Tab 識別碼由 tab1/tab2/tab3/tab5/tab4 改為語意化名稱
   (plan / picking / assembly / autoclave / database)，並讓渲染順序與按鈕順序一致。
 - README 對齊實際狀況：修正檔名 (原本指向不存在的
-  Integrated_Tubing_Autoclave_Tool.html)、補上 Font Awesome 依賴、明確標示
-  「無網路時會白畫面」的已知限制。
-- 新增 .gitignore 與 .gitattributes（index.html 維持 CRLF）。
+  Integrated_Tubing_Autoclave_Tool.html)、補上技術棧與開發指引。
+- 新增 .gitignore 與 .gitattributes（發佈用的 index.html 維持 CRLF，src/ 為 LF）。
+- 新增 npm scripts：test / build / verify:offline / check。
 
 📌 Known Issues
 
-- 離線不可用：React / Tailwind / Babel / Font Awesome 皆由外部 CDN 載入，無網路
-  時開啟為空白畫面。
 - 預設資料中 `1” Braided Silicone Tubing Set` 未被任何 Pattern 的 Zone 收錄，
-  計算時會列為 Unassignable。
+  計算時會列為 Unassignable。（已由測試釘住，資料修正後測試會提醒更新文件）
 
 
 ================================================================================
 [Planned] 後續規劃
 ================================================================================
 
-- 抽出純邏輯 (scheduler / reports / normalize) 並建立 Vitest 測試。
-- 離線化：改以 Vite + vite-plugin-singlefile 產出真正自包含的單一 HTML；
-  React 改用 production build、Babel 移至建置期、Tailwind 以 CLI 產生 purged CSS
-  內嵌、Font Awesome 改用內建 Icons。
 - 報表加入產生時間、工具版本與設定檔識別等可追溯欄位。
 - 演算法：候選排序決定性化、標示最佳解 / 近似解、長時間計算不阻塞 UI。
 - 功能：Catalog 新增／刪除、React Error Boundary、以 inline 訊息取代 alert()。
