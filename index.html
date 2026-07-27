@@ -796,7 +796,7 @@
             const [dbBom, setDbBom] = useState(DEFAULT_BOM);
             const [stageList, setStageList] = useState(DEFAULT_STAGES);
             const [assignments, setAssignments] = useState([]);
-            const [activeTab, setActiveTab] = useState("tab1");
+            const [activeTab, setActiveTab] = useState("plan");
 
             // --- SAFE INITIALIZATION ---
             // Start empty, then populate in an effect so a data problem degrades
@@ -1030,14 +1030,14 @@
                             </div>
                         )}
                         <div className="flex border-b mb-6 overflow-x-auto">
-                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab1' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab1')}>🏗️ Plan & Config</button>
-                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab2' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab2')}>📋 Picking List</button>
-                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab3' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab3')}>📦 Assembly Guide</button>
-                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab5' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab5')}>🌡️ Autoclave Calc</button>
-                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab4' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab4')}>⚙️ Database</button>
+                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'plan' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('plan')}>🏗️ Plan & Config</button>
+                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'picking' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('picking')}>📋 Picking List</button>
+                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'assembly' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('assembly')}>📦 Assembly Guide</button>
+                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'autoclave' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('autoclave')}>🌡️ Autoclave Calc</button>
+                            <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'database' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('database')}>⚙️ Database</button>
                         </div>
                         <div className="min-h-[500px]">
-                            {activeTab === 'tab1' && (<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {activeTab === 'plan' && (<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="md:col-span-1 border p-4 rounded bg-gray-50">
                                     <h3 className="text-xl font-bold mb-4">Stage Manager</h3>
                                     <div className="mb-4 space-y-2">
@@ -1058,10 +1058,10 @@
                                     {assignments.length === 0 ? <div className="bg-blue-50 p-4 rounded text-blue-700">No assignments yet.</div> : (<div>{[...new Set(assignments.map(a => a.Stage))].map(stage => (<div key={stage} className="mb-6"><div className="font-bold text-lg mb-2 text-gray-700">📍 {stage}</div><table className="w-full border-collapse text-sm"><thead><tr className="bg-gray-100 border-b"><th className="p-2 text-left">SOP No.</th><th className="p-2 text-left">Name</th><th className="p-2 text-left">Qty</th><th className="p-2 text-left">Is Stock</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{assignments.filter(a => a.Stage === stage).map((row, idx) => (<tr key={row.id || idx} className="border-b"><td className="p-2">{row['SOP No.']}</td><td className="p-2">{row.Name}</td><td className="p-2">{row.Qty}</td><td className="p-2">{row.Is_Stock ? "Yes" : "No"}</td><td className="p-2 text-center"><button onClick={() => handleDeleteAssignment(row.id)} className="text-red-500 hover:text-red-700"><i className="fas fa-trash"></i></button></td></tr>))}</tbody></table></div>))}</div>)}
                                 </div>
                             </div>)}
-                            {activeTab === 'tab2' && (<div><div dangerouslySetInnerHTML={{ __html: generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog) }} /><div className="mt-4 text-right"><button className="st-btn" onClick={() => downloadHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog), "Picking_List.html")}>📥 Download</button></div></div>)}
-                            {activeTab === 'tab3' && (<div><div dangerouslySetInnerHTML={{ __html: generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams) }} /><div className="mt-4 text-right"><button className="st-btn" onClick={() => downloadHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams), "Assembly_Guide.html")}>📥 Download</button></div></div>)}
-                            {activeTab === 'tab5' && <AutoclaveModule plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
-                            {activeTab === 'tab4' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
+                            {activeTab === 'picking' && (<div><div dangerouslySetInnerHTML={{ __html: generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog) }} /><div className="mt-4 text-right"><button className="st-btn" onClick={() => downloadHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog), "Picking_List.html")}>📥 Download</button></div></div>)}
+                            {activeTab === 'assembly' && (<div><div dangerouslySetInnerHTML={{ __html: generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams) }} /><div className="mt-4 text-right"><button className="st-btn" onClick={() => downloadHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams), "Assembly_Guide.html")}>📥 Download</button></div></div>)}
+                            {activeTab === 'autoclave' && <AutoclaveModule plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
+                            {activeTab === 'database' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
                         </div>
                     </div>
                 </div>

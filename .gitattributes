@@ -1,0 +1,8 @@
+# index.html is distributed as-is to Windows workstations; keep CRLF in the
+# working tree so the file opens cleanly there and diffs stay minimal.
+index.html text eol=crlf
+
+*.md text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
