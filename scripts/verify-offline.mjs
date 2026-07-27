@@ -44,21 +44,46 @@ check('script is inlined', /<script[^>]*>[\s\S]{1000,}<\/script>/.test(html));
 console.log(`\n  index.html is ${(Buffer.byteLength(html) / 1024).toFixed(0)} KB`);
 
 console.log('\nRender check (offline, file://)');
-let chromium, executablePath;
-try {
-    ({ chromium } = await import('playwright'));
-    executablePath = [
-        '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-        process.env.CHROMIUM_PATH
-    ].find(p => p && existsSync(p));
-} catch {
-    // playwright not installed
-}
 
-if (!chromium) {
-    console.log('  – skipped (playwright not installed)');
+/**
+ * Launch a browser, or return null if none is usable.
+ *
+ * Installing the playwright package does not download a browser binary, so
+ * "playwright is importable" is not the same as "a browser can start". The
+ * check is skipped rather than failed when no browser is available — the
+ * static checks above are the ones that must always hold, and failing the
+ * whole run because a developer has not fetched a 150 MB Chromium would make
+ * `npm run check` useless on a fresh machine.
+ */
+const launchBrowser = async () => {
+    let chromium;
+    try {
+        ({ chromium } = await import('playwright'));
+    } catch {
+        return { browser: null, reason: 'playwright is not installed' };
+    }
+
+    // Prefer a system/preinstalled Chromium when one is present.
+    const executablePath = [
+        process.env.CHROMIUM_PATH,
+        '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
+    ].find(p => p && existsSync(p));
+
+    try {
+        const browser = await chromium.launch(executablePath ? { executablePath } : {});
+        return { browser, reason: null };
+    } catch (err) {
+        const detail = String(err.message).split('\n')[0];
+        return { browser: null, reason: `no usable browser (${detail})` };
+    }
+};
+
+const { browser, reason } = await launchBrowser();
+
+if (!browser) {
+    console.log(`  – skipped: ${reason}`);
+    console.log('    run "npx playwright install chromium" to enable this check');
 } else {
-    const browser = await chromium.launch(executablePath ? { executablePath } : {});
     const page = await browser.newPage();
     const requests = [];
     const errors = [];

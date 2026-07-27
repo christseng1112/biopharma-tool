@@ -96,6 +96,18 @@ npm run verify:offline  # 驗證產物零外部請求且能離線渲染
 npm run check           # test + build + verify:offline
 ```
 
+`verify:offline` 分兩部分：
+
+- **靜態檢查**（無外部參照、production React、無 Babel、樣式與腳本已內嵌）——
+  一律執行，任一項不過即以非 0 結束。
+- **實際渲染檢查**（在封鎖所有非 `file://` 請求的瀏覽器中開啟並巡覽全部分頁）——
+  **選用**。`npm install` 不會下載瀏覽器二進位，未安裝時此段會顯示 skip 並照常通過。
+  要啟用請執行一次：
+
+  ```bash
+  npx playwright install chromium
+  ```
+
 `npm run build` 產生 `dist/index.html` 後由 `scripts/publish.mjs` 複製為根目錄的
 `index.html`；若產物中仍存在任何外部參照，publish 會直接失敗而不發佈。
 
