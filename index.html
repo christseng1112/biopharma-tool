@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Integrated Tubing Planner & Autoclave Calc v30.10 (Fix Vars)</title>
+    <title>Integrated Tubing Planner &amp; Autoclave Calc</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -195,6 +195,10 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
+        // Single source of truth for the version shown in the title, the header and
+        // every exported config payload.
+        const APP_VERSION = "30.11";
+
         // --- SHARED UTILITIES ---
         const normalizeName = (name) => {
             if (!name) return "";
@@ -203,6 +207,85 @@
             n = n.replace(/\s*\(Type\s+[A-Za-z0-9]+\)/i, "");
             n = n.replace(/([”"’'])\s+([A-Za-z])/g, '$1$2'); // Fix spaces around quotes
             return n.trim();
+        };
+
+        // A3: every value interpolated into a generated report must go through this.
+        // Report HTML is rendered via dangerouslySetInnerHTML and these fields are
+        // user-editable (Database editor) and importable (config JSON).
+        const escapeHtml = (value) => {
+            if (value === null || value === undefined) return "";
+            return String(value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        };
+
+        // A5: single normalization path, shared by initialization, reset, import and
+        // autosave load. Previously initialization and reset had duplicated copies of
+        // this and the import/autosave paths had none — which silently broke zone
+        // matching for any config that had not already been normalized.
+        const normalizePatterns = (patterns) => (patterns || []).map(p => ({
+            ...p,
+            zones: (p.zones || []).map(z => ({
+                ...z,
+                allowed: [...new Set((z.allowed || []).map(normalizeName))],
+                rules: z.rules ? z.rules.map(r => ({ ...r, items: [...new Set((r.items || []).map(normalizeName))] })) : undefined
+            }))
+        }));
+
+        // A5: validate an imported / restored config before any of it reaches state.
+        // Returns { ok, errors, value } — `value` is only populated when ok is true.
+        const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+        const validateConfig = (data) => {
+            const errors = [];
+            if (!isPlainObject(data)) return { ok: false, errors: ["設定檔最外層必須是一個物件"], value: null };
+
+            if (data.assignments !== undefined && !Array.isArray(data.assignments)) errors.push("assignments 必須是陣列");
+            if (data.stage_list !== undefined && !Array.isArray(data.stage_list)) errors.push("stage_list 必須是陣列");
+
+            const db = data.database;
+            if (db !== undefined && !isPlainObject(db)) errors.push("database 必須是物件");
+
+            if (isPlainObject(db)) {
+                if (db.components !== undefined && !isPlainObject(db.components)) errors.push("database.components 必須是物件 (code -> {Name, Unit})");
+                if (db.catalog !== undefined && !isPlainObject(db.catalog)) errors.push("database.catalog 必須是物件 (SOP No. -> {Name, Stock_Code})");
+                if (db.diagrams !== undefined && !isPlainObject(db.diagrams)) errors.push("database.diagrams 必須是物件 (SOP No. -> string)");
+                if (db.bom !== undefined && !isPlainObject(db.bom)) errors.push("database.bom 必須是物件 (SOP No. -> 陣列)");
+                if (isPlainObject(db.bom)) {
+                    Object.entries(db.bom).forEach(([k, v]) => {
+                        if (!Array.isArray(v)) errors.push(`database.bom["${k}"] 必須是陣列`);
+                    });
+                }
+                const ac = db.autoclave;
+                if (ac !== undefined && !isPlainObject(ac)) errors.push("database.autoclave 必須是物件");
+                if (isPlainObject(ac)) {
+                    if (ac.patterns !== undefined && !Array.isArray(ac.patterns)) errors.push("database.autoclave.patterns 必須是陣列");
+                    if (Array.isArray(ac.patterns)) {
+                        ac.patterns.forEach((p, i) => {
+                            if (!isPlainObject(p)) { errors.push(`patterns[${i}] 必須是物件`); return; }
+                            if (!Array.isArray(p.zones)) { errors.push(`patterns[${i}].zones 必須是陣列`); return; }
+                            p.zones.forEach((z, j) => {
+                                if (!isPlainObject(z)) errors.push(`patterns[${i}].zones[${j}] 必須是物件`);
+                                else if (!Array.isArray(z.allowed)) errors.push(`patterns[${i}].zones[${j}].allowed 必須是陣列`);
+                            });
+                        });
+                    }
+                    if (ac.inventory_group_b !== undefined && !Array.isArray(ac.inventory_group_b)) errors.push("database.autoclave.inventory_group_b 必須是陣列");
+                    if (ac.manual_cart !== undefined && !Array.isArray(ac.manual_cart)) errors.push("database.autoclave.manual_cart 必須是陣列");
+                }
+            }
+
+            return errors.length > 0 ? { ok: false, errors, value: null } : { ok: true, errors: [], value: data };
+        };
+
+        // Catalog / diagrams / bom are keyed by numeric SOP No.; JSON turns those into strings.
+        const reindexByNumber = (obj) => {
+            const out = {};
+            Object.keys(obj || {}).forEach(k => { out[parseInt(k, 10)] = obj[k]; });
+            return out;
         };
 
         // --- CSS STRING FOR EXPORTS ---
@@ -256,11 +339,13 @@
             return { loadedCount: totalLoaded, loadPlan, remainingInv: tempInv };
         };
 
+        const MAX_CYCLES = 100;
+
         const runGreedySimulation = (inventory, patterns) => {
             let currentInventory = inventory.map(i => ({ ...i }));
             const schedule = [];
             let safety = 0;
-            while (currentInventory.some(i => i.qty > 0) && safety++ < 100) {
+            while (currentInventory.some(i => i.qty > 0) && safety++ < MAX_CYCLES) {
                 let best = null;
                 let maxLoaded = -1;
                 for (const p of patterns) {
@@ -274,7 +359,9 @@
                 currentInventory = best.remainingInv;
                 schedule.push({ pattern: best.pattern, loadedItems: best.loadPlan });
             }
-            return schedule;
+            // A1: never silently drop inventory — report whatever could not be scheduled.
+            const remaining = currentInventory.filter(i => i.qty > 0).map(i => ({ ...i }));
+            return { schedule, remaining };
         };
 
         const calculateSchedule = (inventory, patterns) => {
@@ -286,10 +373,13 @@
                 else unassignable.push({ ...item });
             });
 
-            if (cleanInventory.length === 0) return { schedule: [], unassignable };
+            if (cleanInventory.length === 0) return { schedule: [], unassignable, unscheduled: [] };
 
-            let bestSchedule = runGreedySimulation(cleanInventory, patterns);
-            let minCycles = bestSchedule.length;
+            const greedy = runGreedySimulation(cleanInventory, patterns);
+            let bestSchedule = greedy.schedule;
+            let bestRemaining = greedy.remaining;
+            // Only a schedule that consumes everything is a valid upper bound for pruning.
+            let minCycles = bestRemaining.length === 0 ? bestSchedule.length : Infinity;
 
             const totalItems = cleanInventory.reduce((s, i) => s + i.qty, 0);
             if (totalItems < 50) {
@@ -298,10 +388,11 @@
                 const solve = (currentInv, currentPath) => {
                     iterations++;
                     if (iterations > MAX_ITERATIONS) return;
-                    if (currentPath.length >= minCycles) return;
+                    if (currentPath.length >= minCycles || currentPath.length >= MAX_CYCLES) return;
                     if (currentInv.every(i => i.qty <= 0)) {
                         minCycles = currentPath.length;
                         bestSchedule = [...currentPath];
+                        bestRemaining = [];
                         return;
                     }
                     const candidates = [];
@@ -318,7 +409,7 @@
                 solve(cleanInventory, []);
             }
             const finalSchedule = bestSchedule.map((c, i) => ({ ...c, cycleNumber: i + 1 }));
-            return { schedule: finalSchedule, unassignable };
+            return { schedule: finalSchedule, unassignable, unscheduled: bestRemaining };
         };
 
         // --- ICONS ---
@@ -355,7 +446,51 @@
         const DEFAULT_AUTOCLAVE_PATTERNS_DATA = [{ id: 1, name: "Pattern 1 (MFG USP)", program: "P01", description: "Standard USP Production Load", zones: [{ name: "A1-1", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "3/8” C-Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"] }, { name: "A1-2", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set"] }, { name: "A1-3", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set"] }, { name: "A1-4", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set"] }, { name: "A2-1 & A2-2", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"] }, { name: "A2-3", capacity: 1, allowed: ["1/2” C-Flex-3/8” Pump Tubing Set"] }, { name: "A2-4", capacity: 1, allowed: ["1/2” C-Flex-3/8” Pump Tubing Set"] }, { name: "B1-1", capacity: 1, allowed: ["1/2”C- Flex-3/8” Silicone Tubing Set"] }, { name: "B1-2", capacity: 1, allowed: ["1/8”-1/8”-1/8” pump tubing set"] }, { name: "B1-3", capacity: 1, allowed: ["3/8”-1/4”-3/8” pump tubing set"] }, { name: "B1-4", capacity: 1, allowed: ["3/8”-1/4”-3/8” pump tubing set"] }, { name: "B2-1", capacity: 1, allowed: ["1/4” Pump Tubing Set"] }, { name: "B2-2", capacity: 1, allowed: ["1/4” Pump Tubing Set"] }, { name: "B2-3 & B2-4", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"] }] }, { id: 2, name: "Pattern 2 (MFG USP)", program: "P01", description: "USP Load with FoamAway & Tools", zones: [{ name: "A1-1", capacity: 1, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "3/8” C-Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"] }, { name: "A1-2", capacity: 1, allowed: ["1/8”-1/4”-1/8” FoamAway pump tubing set"] }, { name: "A1-3", capacity: 1, allowed: ["1/8” Y tubing set"] }, { name: "A1-4", capacity: 1, allowed: ["1/2” C-Flex-3/8” Pump Tubing Set"] }, { name: "A2-1 & A2-2", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"] }, { name: "A2-3", capacity: 1, allowed: ["3/8”-1/4”-1/4” pump tubing set"] }, { name: "A2-4", capacity: 1, allowed: ["3/8”-1/4”-3/8” pump tubing set"] }, { name: "B1-1", capacity: 30, allowed: ["Forceps"] }, { name: "B1-2", capacity: 1, allowed: ["1/8”-1/8”-1/8” pump tubing set"] }, { name: "B1-3", capacity: 1, allowed: ["3/8” C-Flex-3/8”Silicone Tubing Set"] }, { name: "B1-4", capacity: 1, allowed: ["1/4” Pump Tubing Set"] }, { name: "B2-1 & B2-2", capacity: 1, allowed: ["1/2” to 3/8” C-Flex tubing set"] }, { name: "B2-3", capacity: 3, allowed: ["3/4 Manual Valve"] }, { name: "B2-4", capacity: 3, allowed: ["3/4 Hose Water Piping"] }] }, { id: 3, name: "Pattern 3 (MFG USP)", program: "P01", description: "Harvest/Bioreactor Connectors", zones: [{ name: "A1-1 & A1-2", capacity: 1, allowed: ["1/2” Y tubing set", "3/8” Y tubing set", "1/8” Y tubing set"] }, { name: "A1-3 & A1-4", capacity: 2, allowed: ["1/2\" C-Flex 45 w/ ReadyMate", "3/8\" C-Flex 45 w/ ReadyMate"] }, { name: "A2-1", capacity: 1, allowed: ["Sampling Tubing Set"] }, { name: "A2-2", capacity: 1, allowed: ["SciPres pressure sensor"] }, { name: "A2-3 & A2-4", capacity: 2, allowed: ["1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set", "60 cm 1/2\" Sterile Tubing Set with Scilog"] }, { name: "B1-1 & B1-2", capacity: 2, allowed: ["1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set", "60 cm 1/2\" Sterile Tubing Set with Scilog"] }, { name: "B1-3 & B1-4", capacity: 2, allowed: ["1” Braided Silicone Tubing connect Pumpskid and Scilog", "Exhaust Tubing Set"] }, { name: "B2 (All)", capacity: 4, allowed: ["Connected T-tubing Set", "1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"] }] }, { id: 4, name: "Pattern 4 (MFG USP)", program: "P01", description: "Bulk Tubing Sets", zones: [{ name: "A1-1 & A1-2", capacity: 1, allowed: ["1/2” Y tubing set", "3/8” Y tubing set", "1/8” Y tubing set"] }, { name: "A1-3 & A1-4", capacity: 2, allowed: ["1/2\" C-Flex 45 w/ ReadyMate", "3/8\" C-Flex 45 w/ ReadyMate"] }, { name: "A2-1", capacity: 1, allowed: ["Sampling Tubing Set"] }, { name: "A2-2", capacity: 1, allowed: ["SciPres pressure sensor"] }, { name: "A2-3 & A2-4", capacity: 2, allowed: ["1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set", "60 cm 1/2\" Sterile Tubing Set with Scilog"] }, { name: "B1 (All)", capacity: 4, allowed: ["Connected T-tubing Set", "1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"] }, { name: "B2 (All)", capacity: 4, allowed: ["Connected T-tubing Set", "1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"] }] }, { id: 5, name: "Pattern 5 (MFG USP)", program: "P01", description: "High Capacity Pump Tubing", zones: [{ name: "A1 (All)", capacity: 4, allowed: ["1/8”-1/8”-1/8” pump tubing set", "3/8”-1/4”-3/8” pump tubing set", "3/8”-1/4”-1/4” pump tubing set", "1/2”-1/2”-1/2” pump tubing set", "1/8”-1/4”-1/8” FoamAway pump tubing set", "Sampling Tubing Set", "1/2” C-Flex Tubing Set", "3/8” C-Flex Tubing Set", "1/8” C-Flex Tubing Set"] }, { name: "A2 (All)", capacity: 4, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"] }, { name: "B1 (All)", capacity: 4, allowed: ["3/8” C-Flex-1/4” Silicone Tubing Set", "3/8” C-Flex-3/8”Silicone Tubing Set", "1/2” C-Flex-3/8” Pump Tubing Set", "1/2”C- Flex-3/8” Silicone Tubing Set", "1/2”C- Flex-1/2” Silicone Tubing Set", "45 cm 1/2” Sterile Tubing Set"] }, { name: "B2 (All)", capacity: 4, allowed: ["1/4” Pump Tubing Set", "Pump Tubing Set 620", "1” Braided Silicone Tubing connect Pumpskid and Scilog"] }] }, { id: 6, name: "Pattern 6 (Down Streaming)", program: "P01", description: "Downstream Components 1", zones: [{ name: "A1-1 & A1-2", capacity: 4, allowed: ["Pump tubing 720"] }, { name: "A1-3 & A1-4", capacity: 4, allowed: ["Air vent filter + 60 cm 3/8-5/8 C-Flex + air vent filter"] }, { name: "A2-1 & A2-2", capacity: 4, allowed: ["C-Flex 100/TC", "C-Flex 50/TC"] }, { name: "A2-3", capacity: 12, allowed: ["1-1/2 inch Gasket (2/bag)", "3/4 inch Gasket (5/bag)"] }, { name: "A2-4", capacity: 4, allowed: ["SciPres pressure sensor"] }, { name: "B1-1", capacity: 10, allowed: ["3/4 inch TC cap (2/bag)"] }, { name: "B1-2", capacity: 5, allowed: ["Hose barb to tri-clamp adaptor (2/bag)"] }, { name: "B1-3 & B1-4", capacity: 6, allowed: ["Silicon 100/TC", "Silicon 50/TC", "Silicon 50/TC plus Ready Mate", "Cross adaptor tubing set", "Y adaptor tubing set"], rules: [{ items: ["Silicon 100/TC", "Silicon 50/TC", "Silicon 50/TC plus Ready Mate"], max: 4 }, { items: ["Cross adaptor tubing set", "Y adaptor tubing set"], max: 2 }] }, { name: "B2 (All)", capacity: 8, allowed: ["Silicon 50/TC", "Silicon 50/TC plus Ready Mate", "1\" adaptor tubing set"] }] }, { id: 7, name: "Pattern 7 (Final Filtration & QC)", program: "P01", description: "QC Utensils & Filtration", zones: [{ name: "A1-1 & A1-2", capacity: 2, allowed: ["Cross adaptor", "Y adaptor"] }, { name: "A1-3", capacity: 2, allowed: ["Braided 20"] }, { name: "A1-4", capacity: 4, allowed: ["Pump tubing 520", "Pump tubing 720"] }, { name: "A2-1 & A2-2", capacity: 6, allowed: ["3/4 Hose Water Piping"] }, { name: "A2-3", capacity: 2, allowed: ["1-1/2 Hose Water Piping"] }, { name: "A2-4", capacity: 6, allowed: ["3/4 Manual Valve", "1-1/2 Manual Valve"] }, { name: "B1-1 & B1-2", capacity: 80, allowed: ["Forceps"] }, { name: "B1-3", capacity: 5, allowed: ["Funnel shape air sampler head", "Stainless scissor", "Stainless steel perforated lid"], rules: [{ items: ["Stainless scissor"], max: 2 }, { items: ["Stainless steel perforated lid"], max: 1 }, { items: ["Funnel shape air sampler head", "Stainless steel perforated lid"], max: 3 }] }, { name: "B1-4", capacity: 4, allowed: ["Air sampler head"] }, { name: "B2-1 & B2-2", capacity: 2, allowed: ["50 cm 3/8 -5/8 C-Flex+ 50 cm 5/16 -1/2 pump grade tubing", "50 cm 5/16 -7/16 pump grade tubing"] }, { name: "B2-3", capacity: 1, allowed: ["Bottle holder"] }, { name: "B2-4", capacity: 1, allowed: ["Pump head cover", "WFI sampling tube"] }] }, { id: 8, name: "Pattern 8 (Down Streaming)", program: "P01", description: "Downstream Components 2", zones: [{ name: "A1 (All)", capacity: 8, allowed: ["Silicon 50/TC", "Silicon 50/TC plus Ready Mate"] }, { name: "A2 (All)", capacity: 8, allowed: ["Silicon 50/TC", "Silicon 50/TC plus Ready Mate"] }, { name: "B1-1 & B1-2", capacity: 4, allowed: ["Air vent filter + 60 cm 3/8-5/8 C-Flex + air vent filter", "1\" adaptor tubing set"] }, { name: "B1-3", capacity: 4, allowed: ["Pump tubing 520", "Pump tubing 720", "SciPres pressure sensor", "Braided 20"] }, { name: "B1-4", capacity: 1, allowed: ["50 cm 3/8 -5/8 C-Flex+ 50 cm 5/16 -1/2 pump grade tubing", "3/4 inch TC cap (2/bag)", "Hose barb to tri-clamp adaptor (2/bag)", "1-1/2 inch Gasket (2/bag)", "3/4 inch Gasket (5/bag)"] }, { name: "B2 (All)", capacity: 4, allowed: ["Cross adaptor tubing set", "Y adaptor tubing set"] }] }, { id: 9, name: "Pattern 9 (Probes)", program: "P04", description: "Probe Sterilization", zones: [{ name: "A2-3", capacity: 2, allowed: ["DO Probe"] }, { name: "A2-4", capacity: 2, allowed: ["pH Probe"] }] }, { id: 10, name: "Pattern 10 (Bowie & Dick)", program: "P09", description: "Daily Air Removal Test", zones: [{ name: "B1-1 & B1-2", capacity: 1, allowed: ["Bowie & Dick test pack"] }] }];
 
         // --- HELPER FUNCTIONS ---
-        function generateAssemblyGuideHTML(stageList, tasks, customBomMap, componentsDb, diagramsDb) { let htmlParts = ['<div class="report-container"><h1>Biopharma Assembly Guide (裝配工單)</h1>']; stageList.forEach(stage => { const stageTasks = tasks.filter(t => t.Stage === stage && !t.Is_Stock && !t.Material_Code); if (stageTasks.length === 0) return; htmlParts.push(`<div class="stage-header">📍 製程階段: ${stage}</div>`); htmlParts.push('<table class="custom-table"><thead><tr><th style="width:35%;">Assembly Item / Diagram (管組示意圖)</th><th style="width:8%;">Set Qty<br>(套數)</th><th style="width:25%;">Material Detail (物料明細)</th><th style="width:12%;">Length/Seg<br>(單段長度)</th><th style="width:8%;">Seg/Set<br>(段/套)</th><th style="width:12%;">Total Qty<br>(本站總需)</th></tr></thead><tbody>'); stageTasks.forEach(t => { const sopId = parseInt(t['SOP No.']); const qtySets = t['Qty']; const jsonBom = customBomMap[sopId] || []; const safeDiagram = (diagramsDb[sopId] || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); const rowSpan = jsonBom.length > 0 ? jsonBom.length : 1; let isFirstRow = true; jsonBom.forEach(part => { const pCode = part['Code']; const matInfo = componentsDb[pCode] || { 'Name': 'Unknown' }; const isTubing = part.hasOwnProperty('Len') && part['Len'] > 0; const lenPerSeg = isTubing ? `${part['Len']} cm` : "-"; const segPerSet = part['Count'] || 1; const totalSegs = segPerSet * qtySets; const totalLen = isTubing ? (part['Len'] || 0) * totalSegs : 0; let totalDisp = isTubing ? (totalSegs > 1 ? `<b>${totalLen} cm</b><br><span class='total-detail'>(${totalSegs} x ${part['Len']} cm)</span>` : `<b>${totalLen} cm</b>`) : `${totalSegs} ea`; htmlParts.push('<tr>'); if (isFirstRow) { htmlParts.push(`<td rowspan="${rowSpan}" class="text-center"><b>No. ${sopId}</b><br><span style="font-size:0.9em;">${t["Name"]}</span><br><div class="diagram-code">${safeDiagram}</div></td><td rowspan="${rowSpan}" class="text-center" style="font-size:1.1em; font-weight:bold;">${qtySets}</td>`); } htmlParts.push(`<td><b>${pCode}</b><br><span style="color:#555; font-size:0.9em;">${matInfo["Name"]}</span></td><td class="text-blue">${lenPerSeg}</td><td class="text-center">${segPerSet}</td><td class="bg-light">${totalDisp}</td></tr>`); isFirstRow = false; }); }); htmlParts.push('</tbody></table>'); }); htmlParts.push('</div>'); return htmlParts.join(""); }
+        function generateAssemblyGuideHTML(stageList, tasks, customBomMap, componentsDb, diagramsDb) {
+            const htmlParts = ['<div class="report-container"><h1>Biopharma Assembly Guide (裝配工單)</h1>'];
+            stageList.forEach(stage => {
+                const stageTasks = tasks.filter(t => t.Stage === stage && !t.Is_Stock && !t.Material_Code);
+                if (stageTasks.length === 0) return;
+
+                htmlParts.push(`<div class="stage-header">📍 製程階段: ${escapeHtml(stage)}</div>`);
+                htmlParts.push('<table class="custom-table"><thead><tr><th style="width:35%;">Assembly Item / Diagram (管組示意圖)</th><th style="width:8%;">Set Qty<br>(套數)</th><th style="width:25%;">Material Detail (物料明細)</th><th style="width:12%;">Length/Seg<br>(單段長度)</th><th style="width:8%;">Seg/Set<br>(段/套)</th><th style="width:12%;">Total Qty<br>(本站總需)</th></tr></thead><tbody>');
+
+                stageTasks.forEach(t => {
+                    const sopId = parseInt(t['SOP No.'], 10);
+                    const qtySets = t['Qty'];
+                    const jsonBom = customBomMap[sopId] || [];
+                    const safeDiagram = escapeHtml(diagramsDb[sopId] || "");
+                    const rowSpan = jsonBom.length > 0 ? jsonBom.length : 1;
+                    let isFirstRow = true;
+
+                    jsonBom.forEach(part => {
+                        const pCode = part['Code'];
+                        const matInfo = componentsDb[pCode] || { 'Name': 'Unknown' };
+                        const isTubing = Object.prototype.hasOwnProperty.call(part, 'Len') && part['Len'] > 0;
+                        const lenPerSeg = isTubing ? `${escapeHtml(part['Len'])} cm` : "-";
+                        const segPerSet = part['Count'] || 1;
+                        const totalSegs = segPerSet * qtySets;
+                        const totalLen = isTubing ? (part['Len'] || 0) * totalSegs : 0;
+                        const totalDisp = isTubing
+                            ? (totalSegs > 1
+                                ? `<b>${escapeHtml(totalLen)} cm</b><br><span class='total-detail'>(${escapeHtml(totalSegs)} x ${escapeHtml(part['Len'])} cm)</span>`
+                                : `<b>${escapeHtml(totalLen)} cm</b>`)
+                            : `${escapeHtml(totalSegs)} ea`;
+
+                        htmlParts.push('<tr>');
+                        if (isFirstRow) {
+                            htmlParts.push(`<td rowspan="${rowSpan}" class="text-center"><b>No. ${escapeHtml(sopId)}</b><br><span style="font-size:0.9em;">${escapeHtml(t["Name"])}</span><br><div class="diagram-code">${safeDiagram}</div></td><td rowspan="${rowSpan}" class="text-center" style="font-size:1.1em; font-weight:bold;">${escapeHtml(qtySets)}</td>`);
+                        }
+                        htmlParts.push(`<td><b>${escapeHtml(pCode)}</b><br><span style="color:#555; font-size:0.9em;">${escapeHtml(matInfo["Name"])}</span></td><td class="text-blue">${lenPerSeg}</td><td class="text-center">${escapeHtml(segPerSet)}</td><td class="bg-light">${totalDisp}</td></tr>`);
+                        isFirstRow = false;
+                    });
+                });
+
+                htmlParts.push('</tbody></table>');
+            });
+            htmlParts.push('</div>');
+            return htmlParts.join("");
+        }
         function generatePickingListHTML(tasks, customBomMap, componentsDb, catalogDb) {
             const rawMaterialTotals = {};
             const stockSetTotals = {};
@@ -411,12 +546,12 @@
                     if (isTubing && Object.keys(data.Details).length > 0) {
                         const details = [];
                         Object.keys(data.Details).sort((a, b) => parseFloat(b) - parseFloat(a)).forEach(len => {
-                            details.push(`${len} cm x ${data.Details[len]}`);
+                            details.push(`${escapeHtml(len)} cm x ${escapeHtml(data.Details[len])}`);
                         });
                         detailHtml = details.join("<br>");
                     }
 
-                    htmlParts.push(`<tr><td class="text-center"><b>${code}</b></td><td>${matInfo["Name"]}</td><td class="text-center" style="font-size:1.1em;">${qtyDisplay}</td><td class="text-center" style="font-size:0.9em; color:#555;">${detailHtml}</td></tr>`);
+                    htmlParts.push(`<tr><td class="text-center"><b>${escapeHtml(code)}</b></td><td>${escapeHtml(matInfo["Name"])}</td><td class="text-center" style="font-size:1.1em;">${qtyDisplay}</td><td class="text-center" style="font-size:0.9em; color:#555;">${detailHtml}</td></tr>`);
                 });
                 htmlParts.push('</tbody></table>');
             } else {
@@ -433,7 +568,7 @@
                 Object.keys(stockSetTotals).sort().forEach(code => {
                     const count = stockSetTotals[code];
                     const name = stockNameMap[code] || "Unknown Stock Set";
-                    htmlParts.push(`<tr><td class="text-center"><b>${code}</b></td><td>${name}</td><td class="text-center" style="font-size:1.1em;"><b>${count} ea</b></td></tr>`);
+                    htmlParts.push(`<tr><td class="text-center"><b>${escapeHtml(code)}</b></td><td>${escapeHtml(name)}</td><td class="text-center" style="font-size:1.1em;"><b>${escapeHtml(count)} ea</b></td></tr>`);
                 });
                 htmlParts.push('</tbody></table>');
             }
@@ -492,7 +627,15 @@
             const [bom, setBom] = useState([]);
             useEffect(() => { const keys = Object.keys(dbCatalog); if (keys.length > 0 && (!selectedSop || !dbCatalog[selectedSop])) setSelectedSop(keys[0]); }, [dbCatalog]);
             useEffect(() => { if (selectedSop) { setDiagram(dbDiagrams[selectedSop] ?? ""); const initialBom = (dbBom[selectedSop] ?? []).map(item => ({ ...item, Len: item.Len ?? 0, Count: item.Count ?? 1 })); setBom(initialBom); } else { setDiagram(""); setBom([]); } }, [selectedSop, dbDiagrams, dbBom]);
-            const updateBomRow = (idx, field, val) => { setBom(prevBom => prevBom.map((item, i) => i === idx ? { ...item, [field]: val === "" ? "" : (field === 'Count' ? parseInt(val) : parseFloat(val)) } : item)); };
+            // A2: keep unparseable input as "" rather than storing NaN in state.
+            const updateBomRow = (idx, field, val) => {
+                setBom(prevBom => prevBom.map((item, i) => {
+                    if (i !== idx) return item;
+                    if (val === "") return { ...item, [field]: "" };
+                    const num = field === 'Count' ? parseInt(val, 10) : parseFloat(val);
+                    return { ...item, [field]: Number.isFinite(num) ? num : "" };
+                }));
+            };
             const addBomRow = () => { setBom([...bom, { Code: Object.keys(dbComponents)[0] || "", Len: 0, Count: 1 }]); };
             const removeBomRow = (idx) => setBom(bom.filter((_, i) => i !== idx));
             const handleSave = () => { if (!selectedSop) return; const cleanBom = bom.map(item => ({ ...item, Len: !isNaN(parseFloat(item.Len)) ? parseFloat(item.Len) : 0, Count: !isNaN(parseInt(item.Count)) ? parseInt(item.Count) : 1 })).filter(item => item.Count > 0); setDbDiagrams({ ...dbDiagrams, [selectedSop]: diagram }); setDbBom({ ...dbBom, [selectedSop]: cleanBom }); alert("Logic Updated!"); };
@@ -531,13 +674,17 @@
             }, [plannerAssignments, includeStock]);
 
             const combinedCart = useMemo(() => [...plannerQueue, ...manualCart], [plannerQueue, manualCart]);
-            const { schedule, unassignable } = useMemo(() => calculateSchedule(combinedCart, patternsList), [combinedCart, patternsList]);
+            const { schedule, unassignable, unscheduled } = useMemo(() => calculateSchedule(combinedCart, patternsList), [combinedCart, patternsList]);
+
+            // A2: same guard as the planner — a blank field must not become NaN.
+            const qtyValue = parseInt(quantity, 10);
+            const qtyIsValid = Number.isFinite(qtyValue) && qtyValue > 0;
 
             const handleAddManualItem = () => {
-                if (!selectedItem) return;
+                if (!selectedItem || !qtyIsValid) return;
                 const existing = manualCart.find(i => i.item === selectedItem);
-                if (existing) { setManualCart(manualCart.map(i => i.item === selectedItem ? { ...i, qty: i.qty + quantity } : i)); }
-                else { setManualCart([...manualCart, { item: selectedItem, qty: quantity, source: 'manual' }]); }
+                if (existing) { setManualCart(manualCart.map(i => i.item === selectedItem ? { ...i, qty: i.qty + qtyValue } : i)); }
+                else { setManualCart([...manualCart, { item: selectedItem, qty: qtyValue, source: 'manual' }]); }
                 setQuantity(1);
             };
             const handleRemoveManualItem = (item) => { setManualCart(manualCart.filter(i => i.item !== item)); };
@@ -583,16 +730,17 @@
                         </div>
                         <div className="bg-white p-6 rounded-lg shadow-sm border">
                             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2"><Icons.Plus className="w-5 h-5 text-green-600" /> Add Extra Items (Group B)</h2>
-                            <div className="space-y-4"><div><label className="block text-sm font-medium text-gray-700 mb-1">Select Item</label><select className="w-full border border-gray-300 rounded-md p-2 text-sm outline-none" value={selectedItem} onChange={(e) => setSelectedItem(e.target.value)}><option value="">-- Select Item --</option><optgroup label="Group B: Equipment & Parts">{groupBItems.map(item => <option key={item} value={item}>{item}</option>)}</optgroup><optgroup label="Group A: Tubing Sets (Manual Add)">{groupAItems.map(item => <option key={item} value={item}>{item}</option>)}</optgroup></select></div><div className="flex gap-2"><input type="number" min="1" className="w-20 border rounded p-2 text-sm" value={quantity} onChange={(e) => setQuantity(parseInt(e.target.value) || 1)} /><button onClick={handleAddManualItem} disabled={!selectedItem} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50">Add to Queue</button></div></div>
+                            <div className="space-y-4"><div><label className="block text-sm font-medium text-gray-700 mb-1">Select Item</label><select className="w-full border border-gray-300 rounded-md p-2 text-sm outline-none" value={selectedItem} onChange={(e) => setSelectedItem(e.target.value)}><option value="">-- Select Item --</option><optgroup label="Group B: Equipment & Parts">{groupBItems.map(item => <option key={item} value={item}>{item}</option>)}</optgroup><optgroup label="Group A: Tubing Sets (Manual Add)">{groupAItems.map(item => <option key={item} value={item}>{item}</option>)}</optgroup></select></div><div className="flex gap-2"><input type="number" min="1" className={`w-20 border rounded p-2 text-sm ${qtyIsValid ? '' : 'border-red-400 bg-red-50'}`} value={quantity} onChange={(e) => setQuantity(e.target.value)} /><button onClick={handleAddManualItem} disabled={!selectedItem || !qtyIsValid} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50">Add to Queue</button></div></div>
                             <div className="mt-4 border-t pt-4"><div className="flex justify-between items-center mb-2"><h4 className="font-bold text-sm">Manual Queue</h4>{manualCart.length > 0 && <button onClick={handleClearManualCart} className="text-xs text-red-500 hover:text-red-700">Clear All</button>}</div><ul className="space-y-2 max-h-40 overflow-y-auto custom-scroll">{manualCart.map((c, idx) => (<li key={idx} className="flex justify-between items-center bg-gray-50 p-2 rounded border"><span className="text-sm truncate w-40" title={c.item}>{c.item}</span><div className="flex items-center gap-2"><span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">x{c.qty}</span><button onClick={() => handleRemoveManualItem(c.item)} className="text-red-400 hover:text-red-600"><Icons.Trash2 className="w-4 h-4" /></button></div></li>))}</ul></div>
                         </div>
                     </div>
                     <div className="lg:col-span-2 space-y-6">
                         <div className="bg-white p-6 rounded-lg shadow-sm min-h-[400px] border">
                             <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b pb-2"><Icons.Package className="w-5 h-5 text-blue-600" /> Sterilization Schedule (Total: {combinedCart.reduce((a, c) => a + c.qty, 0)})</h2>
-                            {schedule.length === 0 && unassignable.length === 0 ? (<div className="text-center py-12 text-gray-400"><Icons.Info className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>Add items to generate schedule</p></div>) : (
+                            {schedule.length === 0 && unassignable.length === 0 && unscheduled.length === 0 ? (<div className="text-center py-12 text-gray-400"><Icons.Info className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>Add items to generate schedule</p></div>) : (
                                 <div className="space-y-6">
-                                    {unassignable.length > 0 && (<div className="bg-red-50 border border-red-200 rounded-lg p-4"><h3 className="text-red-800 font-bold flex items-center gap-2"><Icons.AlertCircle className="w-4 h-4" /> Unassignable Items</h3><ul className="list-disc list-inside mt-2 text-xs text-red-700">{unassignable.map((u, i) => <li key={i}>{u.item} (x{u.qty})</li>)}</ul></div>)}
+                                    {unassignable.length > 0 && (<div className="bg-red-50 border border-red-200 rounded-lg p-4"><h3 className="text-red-800 font-bold flex items-center gap-2"><Icons.AlertCircle className="w-4 h-4" /> Unassignable Items <span className="font-normal text-xs">— 沒有任何 Pattern 的 Zone 允許此品項</span></h3><ul className="list-disc list-inside mt-2 text-xs text-red-700">{unassignable.map((u, i) => <li key={i}>{u.item} (x{u.qty})</li>)}</ul></div>)}
+                                    {unscheduled.length > 0 && (<div className="bg-orange-50 border border-orange-300 rounded-lg p-4"><h3 className="text-orange-800 font-bold flex items-center gap-2"><Icons.ShieldAlert className="w-4 h-4" /> Not Scheduled <span className="font-normal text-xs">— 超出 {MAX_CYCLES} 循環上限，未排入任何批次</span></h3><ul className="list-disc list-inside mt-2 text-xs text-orange-700">{unscheduled.map((u, i) => <li key={i}>{u.item} (x{u.qty})</li>)}</ul><p className="mt-2 text-xs text-orange-800 font-bold">⚠️ 這些品項不在上方排程中，請勿依此排程作業。</p></div>)}
                                     {schedule.map(cycle => (
                                         <div key={cycle.cycleNumber} className="relative pl-8 border-l-2 border-gray-200 pb-2">
                                             <div className="absolute -left-3 top-0 bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm">{cycle.cycleNumber}</div>
@@ -650,28 +798,20 @@
             const [assignments, setAssignments] = useState([]);
             const [activeTab, setActiveTab] = useState("tab1");
 
-            // --- SAFE INITIALIZATION (v30.10 Fix) ---
-            // 1. Initialize with empty array to avoid ReferenceError
+            // --- SAFE INITIALIZATION ---
+            // Start empty, then populate in an effect so a data problem degrades
+            // gracefully instead of preventing the App component from mounting.
             const [autoclavePatterns, setAutoclavePatterns] = useState([]);
             const [autoclaveInventoryB, setAutoclaveInventoryB] = useState(DEFAULT_AUTOCLAVE_GROUP_B);
             const [autoclaveManualCart, setAutoclaveManualCart] = useState([]);
+            const [configError, setConfigError] = useState(null);
 
-            // 2. Use useEffect to safely populate data from the Defined Constant
             useEffect(() => {
                 try {
-                    // Use DEFAULT_AUTOCLAVE_PATTERNS_DATA (the correct variable name)
-                    const normalizedPatterns = DEFAULT_AUTOCLAVE_PATTERNS_DATA.map(p => ({
-                        ...p,
-                        zones: p.zones.map(z => ({
-                            ...z,
-                            allowed: [...new Set(z.allowed.map(normalizeName))],
-                            rules: z.rules ? z.rules.map(r => ({ ...r, items: [...new Set(r.items.map(normalizeName))] })) : undefined
-                        }))
-                    }));
-                    setAutoclavePatterns(normalizedPatterns);
+                    setAutoclavePatterns(normalizePatterns(DEFAULT_AUTOCLAVE_PATTERNS_DATA));
                 } catch (err) {
                     console.error("Pattern Initialization Error:", err);
-                    alert("Critical Error initializing patterns. Check console.");
+                    setConfigError({ title: "預設 Pattern 初始化失敗", details: [String(err)] });
                 }
             }, []);
 
@@ -693,95 +833,171 @@
             }, [selectedTubingId, stockCodeExists]);
 
             // --- AUTO SAVE ---
-            const AUTOSAVE_KEY = "BIOPHARMA_AUTOSAVE_V30_10";
+            // A4: the key is deliberately version-free. Bumping the app version must not
+            // silently orphan a user's saved work; migration is driven by the `version`
+            // field inside the payload instead.
+            const AUTOSAVE_KEY = "BIOPHARMA_AUTOSAVE";
+            const LEGACY_AUTOSAVE_KEYS = ["BIOPHARMA_AUTOSAVE_V30_10"];
             const [autoSaveStatus, setAutoSaveStatus] = useState("");
+            // A4: block the debounced writer until the load attempt has resolved, so a
+            // failed load can never be overwritten by default state one second later.
+            const autoSaveReady = useRef(false);
+
+            const buildConfigPayload = () => ({
+                version: APP_VERSION,
+                assignments,
+                stage_list: stageList,
+                database: {
+                    components: dbComponents,
+                    catalog: dbCatalog,
+                    diagrams: dbDiagrams,
+                    bom: dbBom,
+                    autoclave: {
+                        patterns: autoclavePatterns,
+                        inventory_group_b: autoclaveInventoryB,
+                        manual_cart: autoclaveManualCart
+                    }
+                }
+            });
+
+            // A5: one place where a validated config becomes application state.
+            const applyConfig = (data) => {
+                if (Array.isArray(data.assignments)) setAssignments(data.assignments);
+                if (Array.isArray(data.stage_list)) setStageList(data.stage_list);
+                const db = data.database;
+                if (isPlainObject(db)) {
+                    if (isPlainObject(db.components)) setDbComponents(db.components);
+                    if (isPlainObject(db.catalog)) setDbCatalog(reindexByNumber(db.catalog));
+                    if (isPlainObject(db.diagrams)) setDbDiagrams(reindexByNumber(db.diagrams));
+                    if (isPlainObject(db.bom)) setDbBom(reindexByNumber(db.bom));
+                    if (isPlainObject(db.autoclave)) {
+                        // A5: imported patterns were previously applied raw; without
+                        // normalization their zone names stop matching item names and
+                        // every item is reported as unassignable.
+                        if (Array.isArray(db.autoclave.patterns)) setAutoclavePatterns(normalizePatterns(db.autoclave.patterns));
+                        if (Array.isArray(db.autoclave.inventory_group_b)) setAutoclaveInventoryB(db.autoclave.inventory_group_b);
+                        if (Array.isArray(db.autoclave.manual_cart)) setAutoclaveManualCart(db.autoclave.manual_cart);
+                    }
+                }
+            };
 
             // Load from AutoSave on Mount
             useEffect(() => {
-                const saved = localStorage.getItem(AUTOSAVE_KEY);
-                if (saved) {
-                    try {
-                        const data = JSON.parse(saved);
-                        if (data.assignments) setAssignments(data.assignments);
-                        if (data.stage_list) setStageList(data.stage_list);
-                        if (data.database) {
-                            if (data.database.components) setDbComponents(data.database.components);
-                            if (data.database.catalog) { const cat = {}; Object.keys(data.database.catalog).forEach(k => cat[parseInt(k)] = data.database.catalog[k]); setDbCatalog(cat); }
-                            if (data.database.diagrams) { const diag = {}; Object.keys(data.database.diagrams).forEach(k => diag[parseInt(k)] = data.database.diagrams[k]); setDbDiagrams(diag); }
-                            if (data.database.bom) { const bom = {}; Object.keys(data.database.bom).forEach(k => bom[parseInt(k)] = data.database.bom[k]); setDbBom(bom); }
-                            if (data.database.autoclave) {
-                                if (data.database.autoclave.patterns) setAutoclavePatterns(data.database.autoclave.patterns);
-                                if (data.database.autoclave.inventory_group_b) setAutoclaveInventoryB(data.database.autoclave.inventory_group_b);
-                                if (data.database.autoclave.manual_cart) setAutoclaveManualCart(data.database.autoclave.manual_cart);
-                            }
-                        }
-                        console.log("Loaded from Autosave");
-                    } catch (e) { console.error("Autosave load error", e); }
+                let saved = localStorage.getItem(AUTOSAVE_KEY);
+                let sourceKey = AUTOSAVE_KEY;
+                if (!saved) {
+                    for (const legacy of LEGACY_AUTOSAVE_KEYS) {
+                        const v = localStorage.getItem(legacy);
+                        if (v) { saved = v; sourceKey = legacy; break; }
+                    }
                 }
+
+                if (!saved) { autoSaveReady.current = true; return; }
+
+                const quarantine = (reason, details) => {
+                    // A4: never discard data we could not read — park it under a
+                    // timestamped key so it stays recoverable, and tell the user.
+                    const backupKey = `${AUTOSAVE_KEY}_CORRUPT_${Date.now()}`;
+                    try { localStorage.setItem(backupKey, saved); } catch (e) { console.error("Backup failed", e); }
+                    console.error(reason, details);
+                    setConfigError({
+                        title: "自動存檔讀取失敗，已改用預設資料",
+                        details: [...details, `原始資料已備份於 localStorage 的 "${backupKey}"`]
+                    });
+                };
+
+                try {
+                    const parsed = JSON.parse(saved);
+                    const result = validateConfig(parsed);
+                    if (!result.ok) {
+                        quarantine("Autosave validation failed", result.errors);
+                    } else {
+                        applyConfig(result.value);
+                        if (sourceKey !== AUTOSAVE_KEY) console.log(`Migrated autosave from ${sourceKey}`);
+                        console.log("Loaded from Autosave");
+                    }
+                } catch (e) {
+                    quarantine("Autosave parse error", [String(e)]);
+                }
+                autoSaveReady.current = true;
             }, []);
 
             // Save to AutoSave on Change
             useEffect(() => {
                 const timer = setTimeout(() => {
-                    const exportData = { version: '30.10', assignments, stage_list: stageList, database: { components: dbComponents, catalog: dbCatalog, diagrams: dbDiagrams, bom: dbBom, autoclave: { patterns: autoclavePatterns, inventory_group_b: autoclaveInventoryB, manual_cart: autoclaveManualCart } } };
-                    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(exportData));
-                    setAutoSaveStatus("Auto-saved");
-                    setTimeout(() => setAutoSaveStatus(""), 3000);
+                    if (!autoSaveReady.current) return;
+                    try {
+                        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(buildConfigPayload()));
+                        setAutoSaveStatus("Auto-saved");
+                        setTimeout(() => setAutoSaveStatus(""), 3000);
+                    } catch (e) {
+                        console.error("Autosave write error", e);
+                        setAutoSaveStatus("Auto-save failed");
+                    }
                 }, 1000);
                 return () => clearTimeout(timer);
             }, [assignments, stageList, dbComponents, dbCatalog, dbDiagrams, dbBom, autoclavePatterns, autoclaveInventoryB, autoclaveManualCart]);
 
             const handleImport = (e) => {
                 const file = e.target.files[0]; if (!file) return;
+                const inputEl = e.target;
                 const reader = new FileReader();
                 reader.onload = (event) => {
+                    let parsed;
                     try {
-                        const data = JSON.parse(event.target.result);
-                        if (data.assignments) setAssignments(data.assignments);
-                        if (data.stage_list) setStageList(data.stage_list);
-                        if (data.database) {
-                            if (data.database.components) setDbComponents(data.database.components);
-                            if (data.database.catalog) { const cat = {}; Object.keys(data.database.catalog).forEach(k => cat[parseInt(k)] = data.database.catalog[k]); setDbCatalog(cat); }
-                            if (data.database.diagrams) { const diag = {}; Object.keys(data.database.diagrams).forEach(k => diag[parseInt(k)] = data.database.diagrams[k]); setDbDiagrams(diag); }
-                            if (data.database.bom) { const bom = {}; Object.keys(data.database.bom).forEach(k => bom[parseInt(k)] = data.database.bom[k]); setDbBom(bom); }
-                            if (data.database.autoclave) {
-                                if (data.database.autoclave.patterns) setAutoclavePatterns(data.database.autoclave.patterns);
-                                if (data.database.autoclave.inventory_group_b) setAutoclaveInventoryB(data.database.autoclave.inventory_group_b);
-                                if (data.database.autoclave.manual_cart) setAutoclaveManualCart(data.database.autoclave.manual_cart);
-                            }
-                        }
-                        alert("✅ File imported successfully!");
-                    } catch (err) { alert("Error loading file: " + err); }
+                        parsed = JSON.parse(event.target.result);
+                    } catch (err) {
+                        setConfigError({ title: `無法解析 ${file.name}`, details: [String(err)] });
+                        inputEl.value = "";
+                        return;
+                    }
+                    // A5: validate the whole file before touching any state, so a bad
+                    // import cannot leave the app half-populated (and autosaved).
+                    const result = validateConfig(parsed);
+                    if (!result.ok) {
+                        setConfigError({ title: `${file.name} 格式不符，未套用任何資料`, details: result.errors });
+                        inputEl.value = "";
+                        return;
+                    }
+                    applyConfig(result.value);
+                    setConfigError(null);
+                    setAutoSaveStatus(`已匯入 ${file.name}`);
+                    setTimeout(() => setAutoSaveStatus(""), 3000);
+                    inputEl.value = "";
+                };
+                reader.onerror = () => {
+                    setConfigError({ title: `讀取 ${file.name} 失敗`, details: [String(reader.error)] });
+                    inputEl.value = "";
                 };
                 reader.readAsText(file);
             };
 
             const handleExport = () => {
-                const exportData = { version: '30.10', assignments, stage_list: stageList, database: { components: dbComponents, catalog: dbCatalog, diagrams: dbDiagrams, bom: dbBom, autoclave: { patterns: autoclavePatterns, inventory_group_b: autoclaveInventoryB, manual_cart: autoclaveManualCart } } };
-                downloadJson(exportData, "biopharma_prod_config.json");
+                downloadJson(buildConfigPayload(), "biopharma_prod_config.json");
             };
 
             const handleResetDefaults = () => {
                 if (window.confirm("⚠️ Reset ALL data? This will also clear your Auto-Save.")) {
                     localStorage.removeItem(AUTOSAVE_KEY);
+                    LEGACY_AUTOSAVE_KEYS.forEach(k => localStorage.removeItem(k));
                     setDbComponents(DEFAULT_COMPONENTS); setDbCatalog(DEFAULT_CATALOG); setDbDiagrams(DEFAULT_DIAGRAMS); setDbBom(DEFAULT_BOM); setStageList(DEFAULT_STAGES); setAssignments([]);
-                    // Re-initialize patterns safely using the CORRECT variable name
-                    const normalizedPatterns = DEFAULT_AUTOCLAVE_PATTERNS_DATA.map(p => ({
-                        ...p,
-                        zones: p.zones.map(z => ({
-                            ...z,
-                            allowed: [...new Set(z.allowed.map(normalizeName))],
-                            rules: z.rules ? z.rules.map(r => ({ ...r, items: [...new Set(r.items.map(normalizeName))] })) : undefined
-                        }))
-                    }));
-                    setAutoclavePatterns(normalizedPatterns);
-                    setAutoclaveInventoryB(DEFAULT_AUTOCLAVE_GROUP_B); setAutoclaveManualCart([]); setNewStage(""); setQty(1); alert("✅ Reset complete.");
+                    setAutoclavePatterns(normalizePatterns(DEFAULT_AUTOCLAVE_PATTERNS_DATA));
+                    setAutoclaveInventoryB(DEFAULT_AUTOCLAVE_GROUP_B); setAutoclaveManualCart([]); setNewStage(""); setQty(1);
+                    setConfigError(null);
+                    setAutoSaveStatus("已重設為預設值");
+                    setTimeout(() => setAutoSaveStatus(""), 3000);
                 }
             };
 
             const handleAddStage = () => { if (newStage && !stageList.includes(newStage)) { setStageList([...stageList, newStage]); setNewStage(""); } };
             const handleRemoveStage = () => { if (delStage && delStage !== "(Select)") { setStageList(stageList.filter(s => s !== delStage)); setAssignments(assignments.filter(a => a.Stage !== delStage)); setDelStage("(Select)"); } };
-            const handleAddAssignment = () => { setAssignments([...assignments, { id: Date.now(), "Stage": targetStage, "SOP No.": parseInt(selectedTubingId), "Name": selectedTubingData.Name, "Qty": parseInt(qty), "Is_Stock": useStock, "Material_Code": useStock ? selectedTubingData.Stock_Code : null }]); };
+            // A2: reject blank / non-numeric / non-positive quantities instead of writing NaN into the plan.
+            const qtyValue = parseInt(qty, 10);
+            const qtyIsValid = Number.isFinite(qtyValue) && qtyValue > 0;
+            const handleAddAssignment = () => {
+                if (!qtyIsValid || !targetStage || !selectedTubingId) return;
+                setAssignments([...assignments, { id: Date.now(), "Stage": targetStage, "SOP No.": parseInt(selectedTubingId, 10), "Name": selectedTubingData.Name, "Qty": qtyValue, "Is_Stock": useStock, "Material_Code": useStock ? selectedTubingData.Stock_Code : null }]);
+            };
             const handleDeleteAssignment = (id) => { setAssignments(assignments.filter(a => a.id !== id)); };
 
             return (
@@ -801,9 +1017,18 @@
                     </div>
                     <div className="flex-1 p-6 overflow-y-auto">
                         <h1 className="text-3xl font-bold mb-2 flex items-center gap-4">
-                            <span>🧬 Biopharma Production Tool v30.10</span>
+                            <span>🧬 Biopharma Production Tool v{APP_VERSION}</span>
                             {autoSaveStatus && <span className="text-sm font-normal text-green-700 bg-green-100 px-3 py-1 rounded-full shadow-sm border border-green-300 animate-pulse"><i className="fas fa-save"></i> {autoSaveStatus}</span>}
                         </h1>
+                        {configError && (
+                            <div className="mb-4 bg-red-50 border border-red-300 rounded-lg p-4 flex justify-between items-start gap-4">
+                                <div>
+                                    <h3 className="font-bold text-red-800 flex items-center gap-2"><Icons.AlertCircle className="w-4 h-4" /> {configError.title}</h3>
+                                    <ul className="list-disc list-inside mt-2 text-xs text-red-700 space-y-1">{configError.details.map((d, i) => <li key={i}>{d}</li>)}</ul>
+                                </div>
+                                <button onClick={() => setConfigError(null)} className="text-red-500 hover:text-red-700 flex-shrink-0"><Icons.X className="w-4 h-4" /></button>
+                            </div>
+                        )}
                         <div className="flex border-b mb-6 overflow-x-auto">
                             <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab1' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab1')}>🏗️ Plan & Config</button>
                             <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'tab2' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('tab2')}>📋 Picking List</button>
@@ -824,8 +1049,8 @@
                                         <div><label className="block text-sm font-medium mb-1">Stage</label><select className="w-full border p-2 rounded" value={targetStage} onChange={e => setTargetStage(e.target.value)}>{stageList.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
                                         <div><label className="block text-sm font-medium mb-1">Tubing</label><select className="w-full border p-2 rounded" value={selectedTubingId} onChange={e => setSelectedTubingId(e.target.value)}>{Object.entries(dbCatalog).map(([k, v]) => (<option key={k} value={k}>No. {k} - {v.Name}</option>))}</select></div>
                                         <div className="flex items-center gap-2"><input type="checkbox" id="useStock" checked={useStock} onChange={e => setUseStock(e.target.checked)} /><label htmlFor="useStock" className="text-sm font-medium">Use Stock?</label></div>
-                                        <div><label className="block text-sm font-medium mb-1">Qty</label><input type="number" className="w-full border p-2 rounded" min="1" value={qty} onChange={e => setQty(e.target.value)} /></div>
-                                        <button className="st-btn w-full disabled:opacity-50" onClick={handleAddAssignment} disabled={useStock && !stockCodeExists}>Add</button>
+                                        <div><label className="block text-sm font-medium mb-1">Qty</label><input type="number" className={`w-full border p-2 rounded ${qtyIsValid ? '' : 'border-red-400 bg-red-50'}`} min="1" value={qty} onChange={e => setQty(e.target.value)} />{!qtyIsValid && <span className="text-xs text-red-600">請輸入大於 0 的整數</span>}</div>
+                                        <button className="st-btn w-full disabled:opacity-50" onClick={handleAddAssignment} disabled={!qtyIsValid || (useStock && !stockCodeExists)}>Add</button>
                                     </div>
                                 </div>
                                 <div className="md:col-span-2">
