@@ -92,6 +92,42 @@ body {
     padding-bottom: 5px;
 }
 
+/* Provenance header on generated reports. Mirrors the rules in CSS_STRING
+   (src/lib/reports.js) so the in-app preview matches the downloaded file. */
+.provenance {
+    border: 1px solid #bbb;
+    background: #f7f7f7;
+    font-size: 12px;
+    color: #333;
+    margin: 10px 0 18px;
+    padding: 8px 10px;
+}
+
+.provenance table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.provenance td {
+    padding: 2px 6px;
+    vertical-align: top;
+    border: 0;
+}
+
+.provenance td.k {
+    color: #555;
+    white-space: nowrap;
+    width: 1%;
+}
+
+.provenance .uncontrolled {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed #bbb;
+    font-weight: bold;
+    color: #8a2b2b;
+}
+
 .st-btn {
     background-color: #ff4b4b;
     color: white;

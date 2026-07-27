@@ -29,6 +29,9 @@ export function App() {
     const [autoclaveInventoryB, setAutoclaveInventoryB] = useState(DEFAULT_AUTOCLAVE_GROUP_B);
     const [autoclaveManualCart, setAutoclaveManualCart] = useState([]);
     const [configError, setConfigError] = useState(null);
+    // Identifies the dataset the reports were produced from — printed in the
+    // provenance header so a sheet on the floor can be traced back to its source.
+    const [dataSource, setDataSource] = useState(null);
 
     useEffect(() => {
         try {
@@ -80,7 +83,8 @@ export function App() {
     });
 
     // A5: one place where a validated config becomes application state.
-    const applyConfig = (data) => {
+    const applyConfig = (data, sourceLabel) => {
+        setDataSource(sourceLabel || null);
         if (Array.isArray(data.assignments)) setAssignments(data.assignments);
         if (Array.isArray(data.stage_list)) setStageList(data.stage_list);
         const db = data.database;
@@ -131,7 +135,8 @@ export function App() {
             if (!result.ok) {
                 quarantine("Autosave validation failed", result.errors);
             } else {
-                applyConfig(result.value);
+                const version = result.value.version ? ` v${result.value.version}` : '';
+                applyConfig(result.value, `auto-save${version} (browser localStorage)`);
                 if (sourceKey !== AUTOSAVE_KEY) console.log(`Migrated autosave from ${sourceKey}`);
                 console.log("Loaded from Autosave");
             }
@@ -178,7 +183,8 @@ export function App() {
                 inputEl.value = "";
                 return;
             }
-            applyConfig(result.value);
+            const version = result.value.version ? ` v${result.value.version}` : '';
+            applyConfig(result.value, `${file.name}${version}`);
             setConfigError(null);
             setAutoSaveStatus(`已匯入 ${file.name}`);
             setTimeout(() => setAutoSaveStatus(""), 3000);
@@ -202,6 +208,7 @@ export function App() {
             setDbComponents(DEFAULT_COMPONENTS); setDbCatalog(DEFAULT_CATALOG); setDbDiagrams(DEFAULT_DIAGRAMS); setDbBom(DEFAULT_BOM); setStageList(DEFAULT_STAGES); setAssignments([]);
             setAutoclavePatterns(normalizePatterns(DEFAULT_AUTOCLAVE_PATTERNS_DATA));
             setAutoclaveInventoryB(DEFAULT_AUTOCLAVE_GROUP_B); setAutoclaveManualCart([]); setNewStage(""); setQty(1);
+            setDataSource(null);
             setConfigError(null);
             setAutoSaveStatus("已重設為預設值");
             setTimeout(() => setAutoSaveStatus(""), 3000);
@@ -277,8 +284,23 @@ export function App() {
                             {assignments.length === 0 ? <div className="bg-blue-50 p-4 rounded text-blue-700">No assignments yet.</div> : (<div>{[...new Set(assignments.map(a => a.Stage))].map(stage => (<div key={stage} className="mb-6"><div className="font-bold text-lg mb-2 text-gray-700">📍 {stage}</div><table className="w-full border-collapse text-sm"><thead><tr className="bg-gray-100 border-b"><th className="p-2 text-left">SOP No.</th><th className="p-2 text-left">Name</th><th className="p-2 text-left">Qty</th><th className="p-2 text-left">Is Stock</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{assignments.filter(a => a.Stage === stage).map((row, idx) => (<tr key={row.id || idx} className="border-b"><td className="p-2">{row['SOP No.']}</td><td className="p-2">{row.Name}</td><td className="p-2">{row.Qty}</td><td className="p-2">{row.Is_Stock ? "Yes" : "No"}</td><td className="p-2 text-center"><button onClick={() => handleDeleteAssignment(row.id)} className="text-red-500 hover:text-red-700"><Icons.Trash2 className="w-4 h-4" /></button></td></tr>))}</tbody></table></div>))}</div>)}
                         </div>
                     </div>)}
-                    {activeTab === 'picking' && (<div><div dangerouslySetInnerHTML={{ __html: generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog) }} /><div className="mt-4 text-right"><button className="st-btn" onClick={() => downloadHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog), "Picking_List.html")}>📥 Download</button></div></div>)}
-                    {activeTab === 'assembly' && (<div><div dangerouslySetInnerHTML={{ __html: generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams) }} /><div className="mt-4 text-right"><button className="st-btn" onClick={() => downloadHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams), "Assembly_Guide.html")}>📥 Download</button></div></div>)}
+                    {activeTab === 'picking' && (
+                        <div>
+                            <div dangerouslySetInnerHTML={{ __html: generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, { sourceLabel: dataSource }) }} />
+                            <div className="mt-4 text-right">
+                                {/* Regenerated on click so the download carries its own generation time. */}
+                                <button className="st-btn" onClick={() => downloadHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, { sourceLabel: dataSource }), "Picking_List.html")}>📥 Download</button>
+                            </div>
+                        </div>
+                    )}
+                    {activeTab === 'assembly' && (
+                        <div>
+                            <div dangerouslySetInnerHTML={{ __html: generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, { sourceLabel: dataSource }) }} />
+                            <div className="mt-4 text-right">
+                                <button className="st-btn" onClick={() => downloadHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, { sourceLabel: dataSource }), "Assembly_Guide.html")}>📥 Download</button>
+                            </div>
+                        </div>
+                    )}
                     {activeTab === 'autoclave' && <AutoclaveModule plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
                     {activeTab === 'database' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
                 </div>

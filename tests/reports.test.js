@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { generatePickingListHTML, generateAssemblyGuideHTML } from '../src/lib/reports.js';
+import { generatePickingListHTML, generateAssemblyGuideHTML, provenanceHTML } from '../src/lib/reports.js';
+import { APP_VERSION } from '../src/lib/config.js';
 
 const components = {
     'B1': { Name: 'C-Flex tubing', Unit: 'cm' },
@@ -138,5 +139,82 @@ describe('report escaping', () => {
         const html = generatePickingListHTML([task()], bom, components, catalog);
         expect(html).toContain('<table class="custom-table">');
         expect(html).toContain('<div class="report-container">');
+    });
+});
+
+describe('provenance header', () => {
+    const at = new Date(2026, 6, 27, 14, 5, 9); // 2026-07-27 14:05:09 local
+
+    it('records the generation timestamp to the second', () => {
+        expect(provenanceHTML({ title: 'T', generatedAt: at })).toContain('2026-07-27 14:05:09');
+    });
+
+    it('zero-pads single-digit date parts', () => {
+        const html = provenanceHTML({ title: 'T', generatedAt: new Date(2026, 0, 5, 9, 8, 7) });
+        expect(html).toContain('2026-01-05 09:08:07');
+    });
+
+    it('records the tool version', () => {
+        expect(provenanceHTML({ title: 'T', generatedAt: at })).toContain(`v${APP_VERSION}`);
+    });
+
+    it('names the data source when one is known', () => {
+        expect(provenanceHTML({ title: 'T', sourceLabel: 'batch_42.json v30.11', generatedAt: at }))
+            .toContain('batch_42.json v30.11');
+    });
+
+    it('says so explicitly when running on built-in defaults', () => {
+        expect(provenanceHTML({ title: 'T', generatedAt: at })).toContain('built-in defaults');
+    });
+
+    it('marks the document as uncontrolled', () => {
+        const html = provenanceHTML({ title: 'T', generatedAt: at });
+        expect(html).toContain('UNCONTROLLED DOCUMENT');
+        expect(html).toContain('非受控文件');
+    });
+
+    it('escapes the source label', () => {
+        expect(provenanceHTML({ title: 'T', sourceLabel: '<img src=x onerror=alert(1)>', generatedAt: at }))
+            .not.toContain('<img');
+    });
+
+    it('falls back to now when handed an invalid date', () => {
+        expect(provenanceHTML({ title: 'T', generatedAt: new Date('nonsense') })).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
+    });
+});
+
+describe('reports carry provenance', () => {
+    const at = new Date(2026, 6, 27, 14, 5, 9);
+    const prov = { sourceLabel: 'shift_a.json', generatedAt: at };
+
+    it('does not repeat the document title inside the header', () => {
+        const html = provenanceHTML({ title: 'Total Material Picking List', generatedAt: at });
+        expect(html).not.toContain('Total Material Picking List');
+    });
+
+    it('picking list includes the header', () => {
+        const html = generatePickingListHTML([task()], bom, components, catalog, prov);
+        expect(html).toContain('2026-07-27 14:05:09');
+        expect(html).toContain('shift_a.json');
+        expect(html).toContain('UNCONTROLLED DOCUMENT');
+        expect(html).toContain('Total Material Picking List');
+    });
+
+    it('assembly guide includes the header', () => {
+        const html = generateAssemblyGuideHTML(['Harvest'], [task()], bom, components, {}, prov);
+        expect(html).toContain('2026-07-27 14:05:09');
+        expect(html).toContain('shift_a.json');
+        expect(html).toContain('Biopharma Assembly Guide');
+    });
+
+    it('still emits the header when the report has no rows', () => {
+        const html = generatePickingListHTML([], bom, components, catalog, prov);
+        expect(html).toContain('UNCONTROLLED DOCUMENT');
+        expect(html).toContain('No raw materials required');
+    });
+
+    it('places the header before the data tables', () => {
+        const html = generatePickingListHTML([task()], bom, components, catalog, prov);
+        expect(html.indexOf('provenance')).toBeLessThan(html.indexOf('custom-table'));
     });
 });

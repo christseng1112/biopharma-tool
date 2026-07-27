@@ -1,4 +1,5 @@
 import { escapeHtml } from './normalize.js';
+import { APP_VERSION } from './config.js';
 
 /**
  * Report generators. Output is both rendered in-app (via dangerouslySetInnerHTML)
@@ -21,11 +22,52 @@ export const CSS_STRING = `
 .bg-light { background-color: #f9f9f9 !important; text-align: center; }
 .total-detail { font-size: 0.85em; color: #555; display: block; margin-top: 2px; }
 .picking-title { font-size: 1.1rem; font-weight: bold; color: #333; margin-top: 20px; border-bottom: 2px solid #ccc; padding-bottom: 5px; }
+.provenance { border: 1px solid #bbb; background: #f7f7f7; font-size: 12px; color: #333; margin: 10px 0 18px; padding: 8px 10px; }
+.provenance table { border-collapse: collapse; width: 100%; }
+.provenance td { padding: 2px 6px; vertical-align: top; border: 0; }
+.provenance td.k { color: #555; white-space: nowrap; width: 1%; }
+.provenance .uncontrolled { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #bbb; font-weight: bold; color: #8a2b2b; }
 </style>
 `;
 
-export function generateAssemblyGuideHTML(stageList, tasks, customBomMap, componentsDb, diagramsDb) {
-    const htmlParts = ['<div class="report-container"><h1>Biopharma Assembly Guide (裝配工單)</h1>'];
+/**
+ * These reports get printed and carried onto the production floor, where a page
+ * with no origin on it is indistinguishable from any other page. The header
+ * records when it was produced, by which version of the tool, and from which
+ * dataset — and states plainly that it is not a controlled document.
+ *
+ * `sourceLabel` identifies the dataset: the imported filename, or a marker for
+ * the built-in defaults. `generatedAt` is injectable so output is reproducible
+ * under test.
+ */
+export function provenanceHTML({ title, sourceLabel, generatedAt = new Date(), appVersion = APP_VERSION } = {}) {
+    const stamp = Number.isNaN(generatedAt?.getTime?.()) ? new Date() : generatedAt;
+    const pad = (n) => String(n).padStart(2, '0');
+    const formatted = `${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(stamp.getDate())} `
+        + `${pad(stamp.getHours())}:${pad(stamp.getMinutes())}:${pad(stamp.getSeconds())}`;
+
+    // The document name is already the report's <h1>; repeating it here would
+    // just be noise on a printed sheet.
+    const rows = [
+        ['Generated / 產生時間', formatted],
+        ['Tool version / 工具版本', `v${appVersion}`],
+        ['Data source / 資料來源', sourceLabel || '(built-in defaults / 內建預設值)']
+    ];
+
+    return '<div class="provenance"><table>'
+        + rows.map(([k, v]) => `<tr><td class="k">${escapeHtml(k)}</td><td>${escapeHtml(v)}</td></tr>`).join("")
+        + '</table>'
+        + '<div class="uncontrolled">⚠️ 本文件由工具自動產生，為非受控文件 (UNCONTROLLED DOCUMENT). '
+        + '正式生產請依所屬品質系統之受控文件作業。</div>'
+        + '</div>';
+}
+
+export function generateAssemblyGuideHTML(stageList, tasks, customBomMap, componentsDb, diagramsDb, provenance = {}) {
+    const title = 'Biopharma Assembly Guide (裝配工單)';
+    const htmlParts = [
+        `<div class="report-container"><h1>${title}</h1>`,
+        provenanceHTML({ title, ...provenance })
+    ];
 
     stageList.forEach(stage => {
         const stageTasks = tasks.filter(t => t.Stage === stage && !t.Is_Stock && !t.Material_Code);
@@ -72,7 +114,7 @@ export function generateAssemblyGuideHTML(stageList, tasks, customBomMap, compon
     return htmlParts.join("");
 }
 
-export function generatePickingListHTML(tasks, customBomMap, componentsDb, catalogDb) {
+export function generatePickingListHTML(tasks, customBomMap, componentsDb, catalogDb, provenance = {}) {
     const rawMaterialTotals = {};
     const stockSetTotals = {};
     const isCodeTubing = {};
@@ -106,7 +148,11 @@ export function generatePickingListHTML(tasks, customBomMap, componentsDb, catal
         }
     });
 
-    const htmlParts = ['<div class="report-container"><h1>Total Material Picking List (總領料單)</h1>'];
+    const title = 'Total Material Picking List (總領料單)';
+    const htmlParts = [
+        `<div class="report-container"><h1>${title}</h1>`,
+        provenanceHTML({ title, ...provenance })
+    ];
 
     if (Object.keys(rawMaterialTotals).length > 0) {
         htmlParts.push('<div class="picking-title">A. Raw Materials (自製耗材總表)</div>');
