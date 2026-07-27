@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { generatePickingListHTML, generateAssemblyGuideHTML, provenanceHTML } from '../src/lib/reports.js';
+import { generatePickingListHTML, generateAssemblyGuideHTML, generateScheduleHTML, provenanceHTML, QUALITY_LABELS } from '../src/lib/reports.js';
+import { QUALITY } from '../src/lib/scheduler.js';
 import { APP_VERSION } from '../src/lib/config.js';
 
 const components = {
@@ -281,5 +282,72 @@ describe('regression: silent omission and unit mixing', () => {
         expect(html).not.toContain('同時以管材與配件計量');
         expect(html).toContain('180 cm');
         expect(html).toContain('3 ea');
+    });
+});
+
+describe('generateScheduleHTML', () => {
+    const at = new Date(2026, 6, 27, 14, 5, 9);
+    const result = {
+        schedule: [
+            { cycleNumber: 1, pattern: { name: 'Pattern 1', program: 'P01' }, loadedItems: ['[A1] 2x Scissor', '[A2] 1x Forceps'] },
+            { cycleNumber: 2, pattern: { name: 'Pattern 2', program: 'P02' }, loadedItems: ['[B1] 3x Tubing Set'] }
+        ],
+        unassignable: [], unscheduled: [], quality: QUALITY.OPTIMAL, totalItems: 6
+    };
+    const prov = { sourceLabel: 'shift_a.json', generatedAt: at };
+
+    it('carries the provenance header and uncontrolled statement', () => {
+        const html = generateScheduleHTML(result, prov);
+        expect(html).toContain('2026-07-27 14:05:09');
+        expect(html).toContain('shift_a.json');
+        expect(html).toContain('UNCONTROLLED DOCUMENT');
+    });
+
+    it('lists every cycle with its pattern and load lines', () => {
+        const html = generateScheduleHTML(result, prov);
+        expect(html).toContain('Cycle 1');
+        expect(html).toContain('Cycle 2');
+        expect(html).toContain('Pattern 1');
+        expect(html).toContain('P02');
+        expect(html).toContain('[A1] 2x Scissor');
+        expect(html).toContain('[B1] 3x Tubing Set');
+    });
+
+    it('states the totals and the quality with its scoped claim', () => {
+        const html = generateScheduleHTML(result, prov);
+        expect(html).toContain('>6<');    // total items
+        expect(html).toContain('>2<');    // cycle count
+        expect(html).toContain(QUALITY_LABELS[QUALITY.OPTIMAL].label);
+        expect(html).toContain('裝填規則'); // scoped optimality claim, not an absolute one
+    });
+
+    // The printed schedule must show what is NOT covered: omitting it invites
+    // exactly the silent-omission failure this tool guards against.
+    it('prints unassignable and unscheduled warnings before the cycles', () => {
+        const html = generateScheduleHTML({
+            ...result, quality: QUALITY.INCOMPLETE,
+            unassignable: [{ item: 'Ghost', qty: 3 }],
+            unscheduled: [{ item: 'Overflow', qty: 2 }]
+        }, prov);
+        expect(html).toContain('Ghost');
+        expect(html).toContain('Overflow');
+        expect(html).toContain('不在本排程中');
+        expect(html.indexOf('Ghost')).toBeLessThan(html.indexOf('Cycle 1'));
+    });
+
+    it('escapes pattern names and load lines', () => {
+        const html = generateScheduleHTML({
+            schedule: [{ cycleNumber: 1, pattern: { name: '<img src=x onerror=alert(1)>', program: 'P01' }, loadedItems: ['[Z] 1x <script>alert(1)</script>'] }],
+            unassignable: [], unscheduled: [], quality: QUALITY.OPTIMAL, totalItems: 1
+        }, prov);
+        expect(html).not.toContain('<img');
+        expect(html).not.toContain('<script>alert');
+        expect(html).toContain('&lt;img');
+    });
+
+    it('says so when there are no cycles at all', () => {
+        const html = generateScheduleHTML({ schedule: [], unassignable: [], unscheduled: [], quality: QUALITY.OPTIMAL, totalItems: 0 }, prov);
+        expect(html).toContain('No cycles scheduled');
+        expect(html).toContain('UNCONTROLLED DOCUMENT');
     });
 });

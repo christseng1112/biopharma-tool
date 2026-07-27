@@ -1,5 +1,6 @@
 import { escapeHtml } from './normalize.js';
 import { APP_VERSION } from './config.js';
+import { QUALITY, MAX_CYCLES } from './scheduler.js';
 
 /**
  * Report generators. Output is both rendered in-app (via dangerouslySetInnerHTML)
@@ -27,6 +28,13 @@ export const CSS_STRING = `
 .provenance td { padding: 2px 6px; vertical-align: top; border: 0; }
 .provenance td.k { color: #555; white-space: nowrap; width: 1%; }
 .provenance .uncontrolled { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #bbb; font-weight: bold; color: #8a2b2b; }
+.schedule-summary { border: 1px solid #ccc; background: #fafafa; padding: 8px 10px; margin-bottom: 15px; font-size: 13px; }
+.cycle-header { background: #2c3e50; color: white; font-weight: bold; padding: 6px 10px; margin-top: 18px; font-size: 14px; }
+.cycle-header .cycle-meta { font-weight: normal; font-size: 0.85em; color: #cfd8e3; }
+.warn-block { border: 2px solid #c0392b; background: #fdecea; color: #7f1d1d; padding: 10px; margin: 12px 0; font-size: 13px; }
+.warn-block h3 { margin: 0 0 6px; font-size: 14px; }
+.warn-block ul { margin: 0; padding-left: 20px; }
+.done-col { width: 8%; }
 </style>
 `;
 
@@ -219,6 +227,72 @@ export function generatePickingListHTML(tasks, customBomMap, componentsDb, catal
         });
         htmlParts.push('</tbody></table>');
     }
+
+    htmlParts.push('</div>');
+    return htmlParts.join("");
+}
+
+/**
+ * The wording shown for each schedule quality, shared by the on-screen badge
+ * and the downloadable report so the two can never drift apart. The claim for
+ * OPTIMAL is deliberately scoped: the search enumerates pattern sequences, so
+ * it proves "no shorter sequence under the current packing rule", not "no
+ * shorter schedule exists at all".
+ */
+export const QUALITY_LABELS = {
+    [QUALITY.OPTIMAL]: { label: '最佳解 (Optimal)', title: '已窮舉所有 Pattern 組合：在目前的裝填規則下沒有更短的排程' },
+    [QUALITY.HEURISTIC]: { label: '近似解 (Heuristic)', title: '品項過多或搜尋預算用盡，僅提供貪婪解；實際可能存在更短的排程' },
+    [QUALITY.INCOMPLETE]: { label: '不完整 (Incomplete)', title: '有品項未能排入任何批次，請見警示區塊' }
+};
+
+/**
+ * The sterilization schedule as a printable document.
+ *
+ * The picking list and assembly guide have always been downloadable; the
+ * schedule — the sheet an operator actually runs the autoclave from — was
+ * screen-only. The warning blocks are part of the document on purpose: a
+ * printed schedule that omits what was NOT scheduled invites exactly the
+ * silent-omission failure the rest of this tool guards against.
+ */
+export function generateScheduleHTML({ schedule = [], unassignable = [], unscheduled = [], quality, totalItems = 0 } = {}, provenance = {}) {
+    const title = 'Autoclave Sterilization Schedule (滅菌排程表)';
+    const htmlParts = [
+        `<div class="report-container"><h1>${title}</h1>`,
+        provenanceHTML({ title, ...provenance })
+    ];
+
+    const q = QUALITY_LABELS[quality];
+    htmlParts.push('<div class="schedule-summary">');
+    htmlParts.push(`品項總數 (Total items): <b>${escapeHtml(totalItems)}</b> ・ 滅菌循環數 (Cycles): <b>${escapeHtml(schedule.length)}</b>`);
+    if (q) htmlParts.push(` ・ 結果品質: <b>${escapeHtml(q.label)}</b><br><span style="color:#555; font-size:0.9em;">${escapeHtml(q.title)}</span>`);
+    htmlParts.push('</div>');
+
+    // Warnings come before the cycles: an operator reading top-down must see
+    // what is missing before starting to run what is present.
+    if (unassignable.length > 0) {
+        htmlParts.push('<div class="warn-block"><h3>⛔ Unassignable — 沒有任何 Pattern 的 Zone 允許下列品項</h3><ul>');
+        unassignable.forEach(u => htmlParts.push(`<li>${escapeHtml(u.item)} × ${escapeHtml(u.qty)}</li>`));
+        htmlParts.push('</ul><b>下列品項不在本排程中，需另行安排滅菌。</b></div>');
+    }
+    if (unscheduled.length > 0) {
+        htmlParts.push(`<div class="warn-block"><h3>⚠️ Not Scheduled — 超出 ${MAX_CYCLES} 循環上限，未排入任何批次</h3><ul>`);
+        unscheduled.forEach(u => htmlParts.push(`<li>${escapeHtml(u.item)} × ${escapeHtml(u.qty)}</li>`));
+        htmlParts.push('</ul><b>下列品項不在本排程中，請勿依本表視為已涵蓋。</b></div>');
+    }
+
+    if (schedule.length === 0) {
+        htmlParts.push('<p style="padding:10px;">No cycles scheduled (無排程循環)。</p>');
+    }
+
+    schedule.forEach(cycle => {
+        const p = cycle.pattern || {};
+        htmlParts.push(`<div class="cycle-header">Cycle ${escapeHtml(cycle.cycleNumber)} — ${escapeHtml(p.name)} <span class="cycle-meta">(Program: ${escapeHtml(p.program)} ・ ${escapeHtml((cycle.loadedItems || []).length)} 筆裝載)</span></div>`);
+        htmlParts.push('<table class="custom-table"><thead><tr><th style="width:6%;">#</th><th>Load (裝載內容 — [Zone] 數量 × 品項)</th><th class="done-col">Done<br>(完成)</th></tr></thead><tbody>');
+        (cycle.loadedItems || []).forEach((line, i) => {
+            htmlParts.push(`<tr><td class="text-center">${i + 1}</td><td>${escapeHtml(line)}</td><td></td></tr>`);
+        });
+        htmlParts.push('</tbody></table>');
+    });
 
     htmlParts.push('</div>');
     return htmlParts.join("");

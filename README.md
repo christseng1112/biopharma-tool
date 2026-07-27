@@ -4,7 +4,7 @@
 
 本工具封裝於單一 HTML 檔案 `index.html` 中，無需伺服器部署，點擊即可在瀏覽器中運行。
 
-**目前版本：v30.11**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
+**目前版本：v30.12**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
 
 ---
 
@@ -31,12 +31,16 @@
 - **複雜規則檢核**：支援進階限制邏輯（例如：某區域雖然容量為 6，但剪刀最多只能放 2 把）。
 - **結果具決定性**：候選排序為「受 rule 限制者優先 → 數量遞減 → 名稱」，同一組品項無論加入順序為何都得到相同排程。
 - **標示解的品質**：排程標題旁的徽章顯示
-  - **最佳解 (Optimal)** — 已窮舉搜尋，不存在更短的排程
+  - **最佳解 (Optimal)** — 已窮舉所有 Pattern 組合，在目前的裝填規則下無更短排程
   - **近似解 (Heuristic)** — 品項過多或搜尋預算用盡，僅提供貪婪解
   - **不完整 (Incomplete)** — 有品項未能排入，請見下方警示
 - **未排程項目一律回報**，分為兩類：
   - **Unassignable**：沒有任何 Pattern 的 Zone 允許此品項。
   - **Not Scheduled**：超出 100 循環上限，未排入任何批次。
+- **排程表可下載**：與領料單、裝配工單相同格式的獨立 HTML，含來源資訊、
+  結果品質標示與未排程警示區塊，供現場列印與逐項打勾。
+- **Zone 限制可於 UI 編輯**：各 Zone 的 Constraints（如「剪刀最多 2 把」）
+  可直接新增、調整上限、選擇受限品項與刪除，不再需要改 JSON 匯入。
 
 ### ⚙️ 3. 系統與資料庫
 
@@ -72,7 +76,7 @@
 src/
   lib/normalize.js          normalizeName / escapeHtml / normalizePatterns
   lib/scheduler.js          simulateLoad / runGreedySimulation / calculateSchedule
-  lib/reports.js            領料單與裝配工單的 HTML 產生器
+  lib/reports.js            領料單、裝配工單與滅菌排程表的 HTML 產生器
   lib/config.js             APP_VERSION、存檔 key、validateConfig
   lib/download.js           檔案下載
   lib/globalErrorHandler.js 全域錯誤安全網
@@ -81,7 +85,8 @@ src/
                             AutoclaveModule、App
   main.jsx                  進入點
   styles.css                Tailwind directives + 專案樣式
-tests/                      Vitest 測試
+tests/                      Vitest 單元測試
+tests/e2e/                  瀏覽器端對端測試（無瀏覽器時自動 skip）
 scripts/publish.mjs         把 dist/index.html 發佈為 ./index.html
 scripts/verify-offline.mjs  驗證產物真的自包含
 ```
@@ -93,8 +98,13 @@ npm run dev             # 開發伺服器（hot reload）
 npm test                # 執行測試
 npm run build           # 建置並更新 ./index.html
 npm run verify:offline  # 驗證產物零外部請求且能離線渲染
-npm run check           # test + build + verify:offline
+npm run test:e2e        # 瀏覽器端對端測試（對建置後的 index.html）
+npm run check           # test + build + verify:offline + test:e2e
 ```
+
+CI（GitHub Actions，`.github/workflows/check.yml`）在每次 push / PR 執行
+`npm run check`，並額外驗證 commit 的 `index.html` 與 `src/` 建置結果一致 ——
+改了原始碼忘記重建、或手改產物，都會被擋下。
 
 `verify:offline` 分兩部分：
 

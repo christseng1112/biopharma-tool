@@ -326,7 +326,7 @@ export function App() {
                             </div>
                         </div>
                     )}
-                    {activeTab === 'autoclave' && <AutoclaveModule plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
+                    {activeTab === 'autoclave' && <AutoclaveModule plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} dataSource={dataSource} />}
                     {activeTab === 'database' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} dbBom={dbBom} setDbBom={setDbBom} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} assignments={assignments} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
                 </div>
             </div>

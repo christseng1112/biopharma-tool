@@ -1,6 +1,6 @@
 {
   "name": "biopharma-tool",
-  "version": "30.11.0",
+  "version": "30.12.0",
   "private": true,
   "type": "module",
   "description": "Biopharma Production Integration Tool — tubing planner and autoclave load calculator",
@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:offline": "node scripts/verify-offline.mjs",
-    "check": "npm run test && npm run build && npm run verify:offline"
+    "check": "npm run test && npm run build && npm run verify:offline && npm run test:e2e",
+    "test:e2e": "node tests/e2e/run-e2e.mjs"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

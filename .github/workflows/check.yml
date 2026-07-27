@@ -1,0 +1,36 @@
+# Runs the same gate a developer runs locally (`npm run check`), plus a
+# guard that the committed index.html really is the build output of the
+# committed sources — the file is distributed as-is, so a stale or hand-
+# edited artifact is a shipping defect, not a style problem.
+name: check
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Enables the render half of verify:offline and the e2e suite.
+      # Both skip gracefully without it, but in CI we want them to run.
+      - run: npx playwright install chromium --with-deps
+
+      # test → build → verify:offline → test:e2e
+      - run: npm run check
+
+      - name: built artifact matches committed index.html
+        run: |
+          git diff --stat --exit-code index.html \
+            || { echo '::error::index.html is not the build output of src/ — run "npm run build" and commit the result.'; exit 1; }
