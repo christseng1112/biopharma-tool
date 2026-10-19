@@ -8,6 +8,7 @@ import { normalizePatterns, isPlainObject, reindexByNumber } from '../lib/normal
 import { APP_VERSION, AUTOSAVE_KEY, LEGACY_AUTOSAVE_KEYS, validateConfig } from '../lib/config.js';
 import { generatePickingListHTML, generateAssemblyGuideHTML, generateAttachment2PartAHTML } from '../lib/reports.js';
 import { assembledAmounts } from '../lib/forms.js';
+import { withCatalogNames, addAssignment } from '../lib/plan.js';
 import { downloadJson } from '../lib/download.js';
 import {
     sopDataFingerprint, makeDataBasis, defaultDataBasis, describeDataBasis,
@@ -26,6 +27,9 @@ export function App() {
     const [dbBom, setDbBom] = useState(DEFAULT_BOM);
     const [stageList, setStageList] = useState(DEFAULT_STAGES);
     const [assignments, setAssignments] = useState([]);
+    // What every view of the plan reads: the stored assignments under the
+    // catalog's current names (see lib/plan.js). Saves keep the raw rows.
+    const plan = useMemo(() => withCatalogNames(assignments, dbCatalog), [assignments, dbCatalog]);
     const [activeTab, setActiveTab] = useState("plan");
 
     // --- SAFE INITIALIZATION ---
@@ -97,7 +101,7 @@ export function App() {
     const togglePartAStage = (stage) => setPartAExcluded(prev =>
         prev.includes(stage) ? prev.filter(s => s !== stage) : [...prev, stage]);
     const partAHTML = () => generateAttachment2PartAHTML(
-        assembledAmounts(assignments, dbCatalog, partAStages),
+        assembledAmounts(plan, dbCatalog, partAStages),
         { stages: partAStages, provenance }
     );
 
@@ -333,7 +337,7 @@ export function App() {
     const qtyIsValid = Number.isFinite(qtyValue) && qtyValue > 0;
     const handleAddAssignment = () => {
         if (!qtyIsValid || !targetStage || !selectedTubingId) return;
-        setAssignments([...assignments, { id: newAssignmentId(), "Stage": targetStage, "SOP No.": parseInt(selectedTubingId, 10), "Name": selectedTubingData.Name, "Qty": qtyValue, "Is_Stock": useStock, "Material_Code": useStock ? selectedTubingData.Stock_Code : null }]);
+        setAssignments(addAssignment(assignments, { id: newAssignmentId(), "Stage": targetStage, "SOP No.": parseInt(selectedTubingId, 10), "Name": selectedTubingData.Name, "Qty": qtyValue, "Is_Stock": useStock, "Material_Code": useStock ? selectedTubingData.Stock_Code : null }));
     };
     const handleDeleteAssignment = (id) => { setAssignments(assignments.filter(a => a.id !== id)); };
     // QtyCell only commits positive integers, so this never writes NaN or 0.
@@ -388,14 +392,14 @@ export function App() {
                             selectedTubingId={selectedTubingId} setSelectedTubingId={setSelectedTubingId}
                             useStock={useStock} setUseStock={setUseStock} stockCodeExists={stockCodeExists}
                             qty={qty} setQty={setQty} qtyIsValid={qtyIsValid} onAddAssignment={handleAddAssignment}
-                            assignments={assignments} onUpdateQty={handleUpdateAssignmentQty} onDeleteAssignment={handleDeleteAssignment}
+                            assignments={plan} onUpdateQty={handleUpdateAssignmentQty} onDeleteAssignment={handleDeleteAssignment}
                         />
                     )}
                     {activeTab === 'picking' && (
-                        <ReportPanel render={() => generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, provenance)} filename="Picking_List.html" />
+                        <ReportPanel render={() => generatePickingListHTML(plan, dbBom, dbComponents, dbCatalog, provenance)} filename="Picking_List.html" />
                     )}
                     {activeTab === 'assembly' && (
-                        <ReportPanel render={() => generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, provenance)} filename="Assembly_Guide.html" />
+                        <ReportPanel render={() => generateAssemblyGuideHTML(stageList, plan, dbBom, dbComponents, dbDiagrams, provenance)} filename="Assembly_Guide.html" />
                     )}
                     {activeTab === 'partA' && (
                         <div>
@@ -415,7 +419,7 @@ export function App() {
                             provenance={{ ...provenance, patternBasisLabel }}
                             includeStock={autoclaveIncludeStock} setIncludeStock={setAutoclaveIncludeStock}
                             onRestoreDefaultPatterns={handleRestoreDefaultPatterns}
-                            plannerAssignments={assignments} dbCatalog={dbCatalog}
+                            plannerAssignments={plan} dbCatalog={dbCatalog}
                             patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns}
                             inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB}
                             manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart}

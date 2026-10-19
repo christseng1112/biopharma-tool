@@ -465,6 +465,44 @@ scenario('Restoring the default patterns fixes an old save without touching the 
     ok('pattern basis is back to SOP-000077 v11.0', after.pattern_basis?.reference === 'SOP-000077 v11.0');
 });
 
+// ------------------------------------------------------- v30.19 additions ---
+
+scenario('Adding the same set to the same stage again adds to the existing row', async ({ page }) => {
+    await addPlanned(page, 0, 2, 2);
+    await addPlanned(page, 0, 2, 3);
+    const rows = page.getByRole('spinbutton', { name: 'Qty', exact: true });
+    ok('one row, not two', (await rows.count()) === 1);
+    ok('quantities added up', (await rows.first().inputValue()) === '5');
+    await addPlanned(page, 3, 2, 1);   // another stage stays separate
+    ok('a different stage gets its own row', (await rows.count()) === 2);
+});
+
+scenario('A catalog rename reaches the plan already made', async ({ page }) => {
+    // Plan No.2 under its old name, then rename it in the catalog and in every
+    // zone that allows it — what an operator following the rename hint does.
+    await addPlanned(page, 0, 2, 2);
+    await page.waitForTimeout(AUTOSAVE_FLUSH_MS);
+    const saved = await readAutosave(page);
+    const oldName = '1/4"Pump Tubing Set';
+    const newName = '1/4"Pump Tubing Set (renamed)';
+    saved.database.catalog['2'].Name = '1/4” Pump Tubing Set (renamed)';
+    saved.database.autoclave.patterns.forEach(p => p.zones.forEach(z => {
+        z.allowed = z.allowed.map(a => (a === oldName ? newName : a));
+    }));
+    await page.evaluate(s => localStorage.setItem('BIOPHARMA_AUTOSAVE', s), JSON.stringify(saved));
+    await page.reload();
+    await page.waitForSelector('#root h1');
+
+    ok('the stored row still has the old name', (await readAutosave(page)).assignments[0].Name === '1/4” Pump Tubing Set');
+    ok('the plan shows the new name', /\(renamed\)/.test(await page.textContent('#root')));
+    await page.getByRole('button', { name: /Autoclave Calc/ }).click();
+    await page.waitForTimeout(800);
+    const body = await page.textContent('#root');
+    ok('the renamed set is scheduled, not unassignable', !/Unassignable Items/.test(body) && /\(renamed\)/.test(body));
+    await page.getByRole('button', { name: /Assembly Guide/ }).click();
+    ok('the assembly guide prints the new name', /\(renamed\)/.test(await page.textContent('.report-container')));
+});
+
 // ------------------------------------------------------------------ runner ---
 
 for (const { name, fn } of scenarios) {
