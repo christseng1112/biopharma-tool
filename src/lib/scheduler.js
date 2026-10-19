@@ -16,15 +16,54 @@
 /** Hard ceiling on cycles in one schedule. Anything beyond this is reported, never dropped. */
 export const MAX_CYCLES = 100;
 
-/** Backtracking is only attempted below this item count, and only up to MAX_ITERATIONS. */
-export const BACKTRACK_ITEM_LIMIT = 50;
-export const MAX_ITERATIONS = 3000;
+/**
+ * Budget for the exhaustive search, in search nodes. Deliberately a count and
+ * not a time limit: the same input must give the same schedule and the same
+ * quality badge on every workstation. The search used to be skipped outright
+ * above 50 items, which put ordinary batches (a 63-item USP load searches to
+ * completion in about 5,000 nodes) on the unproven greedy answer.
+ */
+export const MAX_ITERATIONS = 10000;
 
 /** The tightest rule cap that applies to `item` in `zone`, or Infinity if unrestricted. */
 const ruleCapFor = (zone, item) => {
     if (!zone.rules) return Infinity;
     return zone.rules.reduce((tightest, rule) =>
         rule.items.includes(item) ? Math.min(tightest, rule.max) : tightest, Infinity);
+};
+
+/**
+ * The most of `item` any single cycle could hold: for each pattern, the sum
+ * over its zones that allow the item of min(capacity, the item's rule cap);
+ * the largest of those over all patterns. Packing-independent, so it bounds
+ * any schedule, greedy-packed or not.
+ */
+const perCycleMax = (item, patterns) => Math.max(0, ...patterns.map(p =>
+    (p.zones || []).reduce((sum, z) =>
+        (z.allowed.includes(item) ? sum + Math.max(0, Math.min(z.capacity, ruleCapFor(z, item))) : sum), 0)));
+
+/**
+ * A lower bound on the cycles still needed for `inventory`: no cycle can
+ * hold more of an item than perCycleMax, nor more items in total than the
+ * largest pattern's total capacity. Lets the search prune branches that
+ * cannot beat the best schedule found, and stop at once when the greedy
+ * schedule already meets the bound.
+ */
+const makeLowerBound = (patterns, items) => {
+    const caps = new Map(items.map(item => [item, perCycleMax(item, patterns)]));
+    const maxTotal = Math.max(0, ...patterns.map(p => (p.zones || []).reduce((s, z) => s + Math.max(0, z.capacity), 0)));
+    return (inventory) => {
+        let bound = 0;
+        let total = 0;
+        for (const { item, qty } of inventory) {
+            if (qty <= 0) continue;
+            total += qty;
+            const cap = caps.get(item);
+            if (cap > 0) bound = Math.max(bound, Math.ceil(qty / cap));
+        }
+        if (maxTotal > 0) bound = Math.max(bound, Math.ceil(total / maxTotal));
+        return bound;
+    };
 };
 
 /**
@@ -151,14 +190,16 @@ export const QUALITY = /** @type {const} */ ({
  *   unassignable — no zone of any pattern allows this item name
  *   unscheduled  — allowed somewhere, but could not be placed within MAX_CYCLES
  *
- * `quality` says how much to trust the cycle count: exhaustive search only runs
- * below BACKTRACK_ITEM_LIMIT items and within MAX_ITERATIONS, and previously
- * degraded to the greedy answer with no indication that it had.
+ * `quality` says how much to trust the cycle count: OPTIMAL when the search
+ * finished (or the greedy schedule already meets the lower bound), HEURISTIC
+ * when the search ran out of budget and the greedy answer stands.
+ * `maxIterations` is injectable so tests can force either outcome.
  * @param {InventoryItem[]} inventory
  * @param {Pattern[]} patterns
+ * @param {{maxIterations?: number}} [options]
  * @returns {ScheduleResult}
  */
-export const calculateSchedule = (inventory, patterns) => {
+export const calculateSchedule = (inventory, patterns, { maxIterations = MAX_ITERATIONS } = {}) => {
     const allAllowedItems = new Set(patterns.flatMap(p => (p.zones || []).flatMap(z => z.allowed)));
     const cleanInventory = [];
     const unassignable = [];
@@ -181,16 +222,28 @@ export const calculateSchedule = (inventory, patterns) => {
     // Using an incomplete greedy result here would prune away valid complete solutions.
     let minCycles = bestRemaining.length === 0 ? bestSchedule.length : Infinity;
 
-    const totalItems = cleanInventory.reduce((s, i) => s + i.qty, 0);
-    const searchAttempted = totalItems < BACKTRACK_ITEM_LIMIT;
+    const lowerBound = makeLowerBound(patterns, cleanInventory.map(i => i.item));
+    // Greedy already meets the bound: nothing shorter can exist.
+    const greedyProven = minCycles === lowerBound(cleanInventory);
     let budgetExhausted = false;
 
-    if (searchAttempted) {
+    if (!greedyProven) {
         let iterations = 0;
+        // Cycle order does not matter, so the same remaining load is reached
+        // through every permutation of the same patterns. Remember the fewest
+        // cycles each remaining load was reached in, and skip a revisit that
+        // is no better.
+        const seenAt = new Map();
+        const stateKey = (inv) => inv.map(i => i.qty).join(',');
         const solve = (currentInv, currentPath) => {
-            iterations++;
-            if (iterations > MAX_ITERATIONS) { budgetExhausted = true; return; }
-            if (currentPath.length >= minCycles || currentPath.length >= MAX_CYCLES) return;
+            if (budgetExhausted) return;
+            if (++iterations > maxIterations) { budgetExhausted = true; return; }
+            if (currentPath.length >= MAX_CYCLES) return;
+            if (currentPath.length + lowerBound(currentInv) >= minCycles) return;
+            const key = stateKey(currentInv);
+            const seen = seenAt.get(key);
+            if (seen !== undefined && seen <= currentPath.length) return;
+            seenAt.set(key, currentPath.length);
             if (currentInv.every(i => i.qty <= 0)) {
                 minCycles = currentPath.length;
                 bestSchedule = [...currentPath];
@@ -213,7 +266,7 @@ export const calculateSchedule = (inventory, patterns) => {
 
     let quality;
     if (bestRemaining.length > 0 || unassignable.length > 0) quality = QUALITY.INCOMPLETE;
-    else if (searchAttempted && !budgetExhausted) quality = QUALITY.OPTIMAL;
+    else if (!budgetExhausted) quality = QUALITY.OPTIMAL;
     else quality = QUALITY.HEURISTIC;
 
     const finalSchedule = bestSchedule.map((c, i) => ({ ...c, cycleNumber: i + 1 }));

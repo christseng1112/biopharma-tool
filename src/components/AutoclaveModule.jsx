@@ -54,11 +54,11 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
         return [...merged.values()];
     }, [plannerQueue, manualCart]);
 
-    // Scheduling is the expensive part: with the shipped patterns and ~30 items
-    // — just under BACKTRACK_ITEM_LIMIT, where the exhaustive search still runs —
-    // calculateSchedule takes ~143 ms. patternsList gets a new identity on every
-    // keystroke in the pattern editor, so that cost landed on every character
-    // typed. Deferring keeps typing responsive.
+    // Scheduling is the expensive part: the exhaustive search runs to its node
+    // budget (MAX_ITERATIONS) on hard loads, about 100 ms at worst with the
+    // shipped patterns. patternsList gets a new identity on every keystroke in
+    // the pattern editor, so that cost would land on every character typed.
+    // Deferring keeps typing responsive.
     const deferredPatterns = useDeferredValue(patternsList);
     const deferredCart = useDeferredValue(combinedCart);
 

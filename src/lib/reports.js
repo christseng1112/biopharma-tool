@@ -371,7 +371,7 @@ export function generateAttachment2PartBHTML(schedule, formIndex, { provenance =
  */
 export const QUALITY_LABELS = {
     [QUALITY.OPTIMAL]: { label: '最佳解 (Optimal)', title: '已窮舉所有 Pattern 組合：在目前的裝填規則下沒有更短的排程' },
-    [QUALITY.HEURISTIC]: { label: '近似解 (Heuristic)', title: '品項過多或搜尋預算用盡，僅提供貪婪解；實際可能存在更短的排程' },
+    [QUALITY.HEURISTIC]: { label: '近似解 (Heuristic)', title: '搜尋預算用盡，僅提供貪婪解；實際可能存在更短的排程' },
     [QUALITY.INCOMPLETE]: { label: '不完整 (Incomplete)', title: '有品項未能排入任何批次，請見警示區塊' }
 };
 
