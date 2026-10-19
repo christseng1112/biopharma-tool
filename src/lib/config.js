@@ -3,7 +3,7 @@ import { isPlainObject } from './normalize.js';
 
 
 /** Single source of truth for the version shown in the UI and written to exports. */
-export const APP_VERSION = "30.16";
+export const APP_VERSION = "30.17";
 
 export const AUTOSAVE_KEY = "BIOPHARMA_AUTOSAVE";
 

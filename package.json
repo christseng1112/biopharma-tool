@@ -1,6 +1,6 @@
 {
   "name": "biopharma-tool",
-  "version": "30.16.0",
+  "version": "30.17.0",
   "private": true,
   "type": "module",
   "description": "Biopharma Production Integration Tool — tubing planner and autoclave load calculator",

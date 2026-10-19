@@ -47,10 +47,13 @@ export const CSS_STRING = `
 .warn-block ul { margin: 0; padding-left: 20px; }
 .done-col { width: 8%; }
 .batch-blank { display: inline-block; min-width: 160px; border-bottom: 1px solid #333; }
-/* Printed reports are filed with the batch record: A4, table headers repeated
-   on every page, and no table row or cycle heading split across a page break. */
+/* Printed reports are filed with the batch record: table headers repeated on
+   every page, and no table row or cycle heading split across a page break.
+   No @page size on purpose: Chrome and Edge hide the portrait/landscape choice
+   whenever a page declares one, so paper and orientation are left to the
+   print dialog (wide reports such as Part B often read better landscape). */
 @media print {
-  @page { size: A4; margin: 12mm; }
+  @page { margin: 12mm; }
   body { margin: 0; }
   .report-container { padding: 0; }
   thead { display: table-header-group; }

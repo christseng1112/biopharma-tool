@@ -446,10 +446,16 @@ describe('generateScheduleHTML', () => {
 });
 
 describe('print styles', () => {
-    it('ship with every report: A4, repeated headers, unbroken rows', () => {
+    it('ship with every report: repeated headers, unbroken rows', () => {
         expect(CSS_STRING).toContain('@media print');
-        expect(CSS_STRING).toMatch(/@page\s*\{\s*size:\s*A4/);
+        expect(CSS_STRING).toMatch(/@page\s*\{\s*margin:/);
         expect(CSS_STRING).toContain('thead { display: table-header-group; }');
         expect(CSS_STRING).toMatch(/tr,[^{]*\{[^}]*break-inside: avoid/);
+    });
+
+    // A declared @page size makes Chrome/Edge hide the orientation choice,
+    // which locked every report to portrait in v30.16.
+    it('leave paper size and orientation to the print dialog', () => {
+        expect(CSS_STRING).not.toMatch(/@page\s*\{[^}]*\bsize\s*:/);
     });
 });
