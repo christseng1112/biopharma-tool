@@ -213,6 +213,14 @@ describe('provenance header', () => {
         expect(provenanceHTML({ title: 'T', generatedAt: at })).not.toContain('滅菌 Pattern 依據');
     });
 
+    // Stacked one-row-per-field, the header took 27-33% of a printed A4 page.
+    it('lays the fields out compactly, not one table row per field', () => {
+        const html = provenanceHTML({ title: 'T', batchNo: 'B1', dataBasisLabel: 'x', patternBasisLabel: 'y', generatedAt: at });
+        expect(html).not.toContain('<table');
+        expect(html.match(/class="prov-item"/g)).toHaveLength(6);
+        expect(CSS_STRING).toMatch(/\.report-container h1 \{ font-size: 16px/);
+    });
+
     it('falls back to now when handed an invalid date', () => {
         expect(provenanceHTML({ title: 'T', generatedAt: new Date('nonsense') })).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
     });
