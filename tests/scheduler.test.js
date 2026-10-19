@@ -186,7 +186,7 @@ describe('default dataset', () => {
     const patterns = normalizePatterns(DEFAULT_AUTOCLAVE_PATTERNS_DATA);
 
     it('normalizes without error', () => {
-        expect(patterns).toHaveLength(10);
+        expect(patterns).toHaveLength(11);
         expect(patterns.every(p => Array.isArray(p.zones) && p.zones.length > 0)).toBe(true);
     });
 
@@ -198,13 +198,13 @@ describe('default dataset', () => {
         expect(loadedCount(r.schedule) + total(r.unassignable)).toBe(inventory.length);
     });
 
-    it('has exactly one catalog item missing from every pattern zone', () => {
-        // Known data gap, documented in the README. This test exists to make the
-        // gap visible: if it changes, the data changed and the README needs an update.
+    it('has a zone for every catalog item', () => {
+        // No.26 used to be the one exception: the shipped patterns carried No.19
+        // where SOP-000077 v10.0+ puts No.26. Pinned so a regression shows.
         const inventory = [...new Set(Object.values(DEFAULT_CATALOG).map(c => normalizeName(c.Name)))]
             .map(item => ({ item, qty: 1 }));
         const { unassignable } = calculateSchedule(inventory, patterns);
-        expect(unassignable.map(u => u.item)).toEqual(['1"Braided Silicone Tubing Set']);
+        expect(unassignable).toEqual([]);
     });
 
     // Every catalog entry needs a BOM and a diagram or it drops out of the
@@ -333,5 +333,63 @@ describe('result quality', () => {
         // 60 items is above BACKTRACK_ITEM_LIMIT, so no search runs.
         const r = calculateSchedule([{ item: 'W', qty: 60 }], [pattern([{ name: 'Z', capacity: 7, allowed: ['W'] }])]);
         expect(r.quality).not.toBe(QUALITY.OPTIMAL);
+    });
+});
+
+// Pins the corrections made against SOP-000077 v11.0 Attachment 1.
+describe('default patterns match SOP-000077 v11.0', () => {
+    const patterns = normalizePatterns(DEFAULT_AUTOCLAVE_PATTERNS_DATA);
+    const zone = (id, name) => patterns.find(p => p.id === id).zones.find(z => z.name === name);
+    const n = (sopNo) => normalizeName(DEFAULT_CATALOG[sopNo].Name);
+    const loadOnce = (id, inventory) => simulateLoad(inventory, patterns.find(p => p.id === id));
+
+    it('puts No.26, not No.19, in P3 B2, P4 B1/B2 and P5 B2', () => {
+        [[3, 'B2 (All)'], [4, 'B1 (All)'], [4, 'B2 (All)'], [5, 'B2 (All)']].forEach(([id, z]) => {
+            expect(zone(id, z).allowed).toContain(n(26));
+            expect(zone(id, z).allowed).not.toContain(n(19));
+        });
+    });
+
+    it('keeps No.19 only in P3 B1-3 & B1-4', () => {
+        const homes = patterns.flatMap(p => p.zones.filter(z => z.allowed.includes(n(19))).map(z => `${p.id}:${z.name}`));
+        expect(homes).toEqual(['3:B1-3 & B1-4']);
+    });
+
+    it('allows No.30 in P5 A2', () => {
+        expect(zone(5, 'A2 (All)').allowed).toContain(n(30));
+    });
+
+    it('names P8 A2 for the two locations it occupies', () => {
+        expect(zone(8, 'A2-1 & A2-2').capacity).toBe(8);
+    });
+
+    it('loads every item of a multi-item location together, each up to its own maximum', () => {
+        const p8b14 = loadOnce(8, [
+            { item: '50 cm 3/8 -5/8 C-Flex+ 50 cm 5/16 -1/2 pump grade tubing', qty: 3 },
+            { item: '3/4 inch TC cap (2/bag)', qty: 20 },
+            { item: 'Hose barb to tri-clamp adaptor (2/bag)', qty: 20 },
+            { item: '1-1/2 inch Gasket (2/bag)', qty: 8 },
+            { item: '3/4 inch Gasket (5/bag)', qty: 8 }
+        ]).loadedEntries.filter(e => e.zone === 'B1-4');
+        const took = Object.fromEntries(p8b14.map(e => [e.item, e.qty]));
+        expect(took['50 cm 3/8 -5/8 C-Flex+ 50 cm 5/16 -1/2 pump grade tubing']).toBe(1);
+        expect(took['3/4 inch TC cap (2/bag)']).toBe(10);
+        expect(took['Hose barb to tri-clamp adaptor (2/bag)']).toBe(5);
+        expect((took['1-1/2 inch Gasket (2/bag)'] || 0) + (took['3/4 inch Gasket (5/bag)'] || 0)).toBe(12);
+
+        const p7b24 = loadOnce(7, [{ item: 'Pump head cover', qty: 2 }, { item: 'WFI sampling tube', qty: 2 }])
+            .loadedEntries.filter(e => e.zone === 'B2-4');
+        expect(p7b24.map(e => [e.item, e.qty]).sort()).toEqual([['Pump head cover', 1], ['WFI sampling tube', 1]]);
+
+        const p7a24 = loadOnce(7, [{ item: '1-1/2 Manual Valve', qty: 6 }]).loadedEntries.filter(e => e.zone === 'A2-4');
+        expect(p7a24).toEqual([{ zone: 'A2-4', item: '1-1/2 Manual Valve', qty: 1 }]);
+    });
+
+    it('sends bellows-sheath probes to P04 and click-in-sheath probes to P10', () => {
+        const run = (item) => calculateSchedule([{ item, qty: 2 }], patterns).schedule.map(c => c.pattern.program);
+        expect(run('DO Probe (bellows sheath)')).toEqual(['P04']);
+        expect(run('pH Probe (bellows sheath)')).toEqual(['P04']);
+        expect(run('DO Probe (click-in sheath)')).toEqual(['P10']);
+        expect(run('pH Probe (click-in sheath)')).toEqual(['P10']);
     });
 });

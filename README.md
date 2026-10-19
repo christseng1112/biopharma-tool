@@ -4,7 +4,7 @@
 
 本工具封裝於單一 HTML 檔案 `index.html` 中，無需伺服器部署，點擊即可在瀏覽器中運行。
 
-**目前版本：v30.15**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
+**目前版本：v30.16**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
 
 ---
 
@@ -24,7 +24,7 @@
 
 ### 🌡️ 2. 滅菌鍋計算 (Autoclave Calculator)
 
-基於 SOP-000077 標準，使用貪婪演算法搭配回溯搜尋 (Greedy + Backtracking) 優化滅菌鍋的空間利用。
+基於 SOP-000077 標準，使用貪婪演算法搭配回溯搜尋 (Greedy + Backtracking) 優化滅菌鍋的空間利用。內建 11 個 Loading Pattern 依據 **SOP-000077 v11.0** 附件 1 核對。
 
 - **自動資料串接**：直接從 Planner 匯入需滅菌的「非庫存管組」，無需重複輸入。
 - **混合排程**：支援自動匯入的管組 (Group A) 與手動加入的器具配件 (Group B) 混合計算。
@@ -52,6 +52,8 @@
 - **設定檔管理**：支援 JSON 格式的完整設定匯出與匯入 (Export/Import)。匯入前會先做結構驗證，格式不符時**不會套用任何資料**，並在畫面上列出具體錯誤。
 - **自動存檔**：變更後 1 秒自動寫入瀏覽器 localStorage（key：`BIOPHARMA_AUTOSAVE`）。若存檔毀損或格式不符，原始內容會被備份到 `BIOPHARMA_AUTOSAVE_CORRUPT_<timestamp>` 並於畫面提示，不會被靜默覆蓋。
 - **資料依據 (Data Basis)**：記錄 SOP 資料（Components / Catalog / 示意圖 / BOM）核對所依據的文件與版本，並印在每份報表的來源區塊。資料在記錄後被修改時，報表會標示「記錄後資料已修改」。SOP 進版時，於 Database 分頁更新資料後記錄新版本即可。
+- **Pattern 依據 (Pattern Basis)**：滅菌 Pattern 另有一份依據（預設 SOP-000077 v11.0），印在滅菌排程表與附件 2 Part B，規則同上。
+- **批號與列印**：Plan 分頁輸入的批號／工單號會印在所有報表；未填則印一條空白線供手寫。每份報表都有 🖨️ Print，以 A4 版面列印，跨頁重複表頭、表格列不被切斷。
 - **資料庫編輯器**：內建 GUI 介面，可新增／修改／刪除元件庫 (Components) 與目錄 (Catalog)，並編輯裝配圖 (Diagrams)、BOM 與滅菌模式 (Patterns)。刪除前會檢查是否仍被 BOM 或 Assignment 引用，被引用時拒絕刪除。
 - **錯誤處理**：渲染錯誤由 React Error Boundary 接住並顯示錯誤內容與復原選項，不會變成空白畫面；其餘錯誤由頁面內橫幅呈現。全程不使用 `alert()`。
 
@@ -145,10 +147,12 @@ CI（GitHub Actions，`.github/workflows/check.yml`）在每次 push / PR 執行
 1. **啟動**：直接使用 Chrome 或 Edge 瀏覽器開啟 `index.html`。
 2. **🏗️ Plan & Config**
    - 建立製程階段。
+   - 於最上方輸入 **批號 / 工單號 (Batch No.)**（選填，印在所有報表）。
    - 選擇 SOP 管組編號並輸入數量（數量必須是大於 0 的整數，否則 Add 按鈕會停用）。
    - 系統會提示該項目是否為庫存品。
+   - 已加入的項目可直接在 Current Assignments 修改數量；只接受大於 0 的整數。
 3. **📋 Picking List / 📦 Assembly Guide / 📝 附件 2 Part A**
-   - 查看並下載領料單、組裝工單與附件 2 Part A；Part A 可勾選要納入的製程階段。
+   - 查看、列印 (🖨️ Print) 並下載領料單、組裝工單與附件 2 Part A；Part A 可勾選要納入的製程階段。
    - 每份報表的標題下方均附有來源區塊：產生時間、工具版本、資料來源，以及「非受控文件」聲明。
 4. **🌡️ Autoclave Calc**
    - 系統會自動帶入 Plan 分頁中需要組裝的管組。
@@ -156,10 +160,12 @@ CI（GitHub Actions，`.github/workflows/check.yml`）在每次 push / PR 執行
    - 系統即時計算並顯示滅菌排程建議。
    - **請務必檢查是否出現 Unassignable 或 Not Scheduled 區塊** — 這些品項不在排程中。
    - 每鍋卡片底部的「附件 2 Part B」字串可直接複製填入；完整 Part B 表在排程下方。
+   - **Include Stock** 的勾選會保留（切換分頁或重新開啟都不會重設）。
+   - 舊存檔的 Pattern 不會自動更新。Pattern Configuration 的 **↺ 還原為預設 Pattern** 只重設 Pattern 與 Group B 清單，規劃與 Database 資料不受影響。
 5. **⚙️ Database**
    - 新增／編輯／刪除元件庫與目錄項目，並編輯裝配圖與 BOM。
    - 變更需按各區塊的 **Save Changes** 才會套用；結果會以區塊內的訊息列回報。
-   - 依 SOP 核對完成後，於最上方 **Data Basis** 區塊輸入依據文件與版本（例：`SOP-000022 v9.0`）並記錄。
+   - 依 SOP 核對完成後，於最上方 **Data Basis** 與 **Pattern Basis** 區塊輸入依據文件與版本（例：`SOP-000022 v9.0`、`SOP-000077 v11.0`）並記錄。
 6. **保存**：點擊左側 Sidebar 的 Export 下載 JSON 檔以保存當前進度。
 
 ---
@@ -176,7 +182,8 @@ CI（GitHub Actions，`.github/workflows/check.yml`）在每次 push / PR 執行
 - 產生的 Picking List 與 Assembly Guide 是工具自動產生的參考文件，**非受控文件**；正式生產請依所屬品質系統的受控文件作業。
 - No.21 Pump Tubing Set 620 的兩種組裝方式分別為 No.21（末端 W, Mini TC）與 No.212（兩端 Empty End）。
 - v30.14 以前的自動存檔沒有資料依據，載入後顯示「未記錄」，請核對後於 Database 分頁記錄。
-- 預設資料中的 `1” Braided Silicone Tubing Set` 未被任何滅菌 Pattern 的 Zone 收錄，計算時會被列為 Unassignable。若需納入排程，請於 Database 分頁將其加入對應 Zone 的允許清單。
+- DO / pH Probe 依探頭套類型分為 bellows sheath（Pattern 9，P04）與 click-in sheath（Pattern 11，P10）兩種品項，請依實際探頭套選擇。
+- v30.16 以前的自動存檔仍帶著舊 Pattern（No.26 會列為 Unassignable、沒有 Pattern 11），請於 Autoclave 分頁按「還原為預設 Pattern」。
 
 ### 共用工作站的存檔行為
 

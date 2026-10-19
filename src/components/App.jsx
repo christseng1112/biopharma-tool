@@ -5,12 +5,16 @@ import { ComponentEditor } from './ComponentEditor.jsx';
 import { CatalogEditor } from './CatalogEditor.jsx';
 import { LogicEditor } from './LogicEditor.jsx';
 import { DataBasisEditor } from './DataBasisEditor.jsx';
+import { QtyCell } from './QtyCell.jsx';
 import { normalizePatterns, isPlainObject, reindexByNumber } from '../lib/normalize.js';
 import { APP_VERSION, AUTOSAVE_KEY, LEGACY_AUTOSAVE_KEYS, validateConfig } from '../lib/config.js';
 import { generatePickingListHTML, generateAssemblyGuideHTML, generateAttachment2PartAHTML } from '../lib/reports.js';
 import { assembledAmounts } from '../lib/forms.js';
-import { downloadHtml, downloadJson } from '../lib/download.js';
-import { sopDataFingerprint, makeDataBasis, defaultDataBasis, describeDataBasis } from '../lib/dataBasis.js';
+import { downloadHtml, downloadJson, printHtml } from '../lib/download.js';
+import {
+    sopDataFingerprint, makeDataBasis, defaultDataBasis, describeDataBasis,
+    patternsFingerprint, makePatternBasis, defaultPatternBasis
+} from '../lib/dataBasis.js';
 import { formatFileStamp } from '../lib/format.js';
 import {
     DEFAULT_COMPONENTS, DEFAULT_CATALOG, DEFAULT_DIAGRAMS, DEFAULT_BOM,
@@ -32,6 +36,13 @@ export function App() {
     const [autoclavePatterns, setAutoclavePatterns] = useState([]);
     const [autoclaveInventoryB, setAutoclaveInventoryB] = useState(DEFAULT_AUTOCLAVE_GROUP_B);
     const [autoclaveManualCart, setAutoclaveManualCart] = useState([]);
+    // Lives here rather than in AutoclaveModule: that component unmounts when
+    // another tab is opened, and the box used to come back unticked — silently
+    // dropping stock sets from the schedule and the Part B form.
+    const [autoclaveIncludeStock, setAutoclaveIncludeStock] = useState(false);
+    // Batch / work-order number printed on every report, so a printed sheet
+    // can be filed with its batch record (SOP-000022 3.2.9, SOP-000077 4.9).
+    const [batchNo, setBatchNo] = useState("");
     const [configError, setConfigError] = useState(null);
     // Identifies the dataset the reports were produced from — printed in the
     // provenance header so a sheet on the floor can be traced back to its source.
@@ -49,6 +60,21 @@ export function App() {
     const handleRecordDataBasis = (reference) => setDataBasis(makeDataBasis(reference, {
         components: dbComponents, catalog: dbCatalog, diagrams: dbDiagrams, bom: dbBom
     }));
+    // The loading patterns come from SOP-000077 and carry their own basis.
+    const [patternBasis, setPatternBasis] = useState(() => defaultPatternBasis());
+    const patternFingerprint = useMemo(() => patternsFingerprint(autoclavePatterns), [autoclavePatterns]);
+    const patternBasisLabel = describeDataBasis(patternBasis, patternFingerprint);
+    const handleRecordPatternBasis = (reference) => setPatternBasis(makePatternBasis(reference, autoclavePatterns));
+    // Autosaves carry their own patterns, so a correction to the shipped
+    // patterns only reached a user through Reset Defaults — which also wipes
+    // the plan. This restores the patterns (and the Group B list they refer
+    // to) and nothing else.
+    const handleRestoreDefaultPatterns = () => {
+        setAutoclavePatterns(normalizePatterns(DEFAULT_AUTOCLAVE_PATTERNS_DATA));
+        setAutoclaveInventoryB(DEFAULT_AUTOCLAVE_GROUP_B);
+        setPatternBasis(defaultPatternBasis());
+    };
+    const provenance = { sourceLabel: dataSource, dataBasisLabel, batchNo };
 
     useEffect(() => {
         try {
@@ -74,7 +100,7 @@ export function App() {
         prev.includes(stage) ? prev.filter(s => s !== stage) : [...prev, stage]);
     const partAHTML = () => generateAttachment2PartAHTML(
         assembledAmounts(assignments, dbCatalog, partAStages),
-        { stages: partAStages, provenance: { sourceLabel: dataSource, dataBasisLabel } }
+        { stages: partAStages, provenance }
     );
 
     useEffect(() => { if (stageList.length > 0 && !targetStage) setTargetStage(stageList[0]); }, [stageList, targetStage]);
@@ -99,6 +125,8 @@ export function App() {
     const buildConfigPayload = () => ({
         version: APP_VERSION,
         data_basis: dataBasis,
+        pattern_basis: patternBasis,
+        batch_no: batchNo,
         assignments,
         stage_list: stageList,
         database: {
@@ -109,7 +137,8 @@ export function App() {
             autoclave: {
                 patterns: autoclavePatterns,
                 inventory_group_b: autoclaveInventoryB,
-                manual_cart: autoclaveManualCart
+                manual_cart: autoclaveManualCart,
+                include_stock: autoclaveIncludeStock
             }
         }
     });
@@ -124,6 +153,13 @@ export function App() {
         const replacesSopData = isPlainObject(db) && ['components', 'catalog', 'diagrams', 'bom'].some(k => db[k] !== undefined);
         if (data.data_basis !== undefined) setDataBasis(data.data_basis);
         else if (replacesSopData) setDataBasis(null);
+        // Same rule for the patterns' basis (SOP-000077).
+        if (data.pattern_basis !== undefined) setPatternBasis(data.pattern_basis);
+        else if (isPlainObject(db) && isPlainObject(db.autoclave) && Array.isArray(db.autoclave.patterns)) setPatternBasis(null);
+        // A batch number belongs to the plan it came with: a config that brings
+        // a new plan without one must not inherit the previous plan's number.
+        if (typeof data.batch_no === 'string') setBatchNo(data.batch_no);
+        else if (Array.isArray(data.assignments)) setBatchNo("");
         if (Array.isArray(data.assignments)) setAssignments(data.assignments);
         if (Array.isArray(data.stage_list)) setStageList(data.stage_list);
         if (isPlainObject(db)) {
@@ -138,6 +174,7 @@ export function App() {
                 if (Array.isArray(db.autoclave.patterns)) setAutoclavePatterns(normalizePatterns(db.autoclave.patterns));
                 if (Array.isArray(db.autoclave.inventory_group_b)) setAutoclaveInventoryB(db.autoclave.inventory_group_b);
                 if (Array.isArray(db.autoclave.manual_cart)) setAutoclaveManualCart(db.autoclave.manual_cart);
+                if (typeof db.autoclave.include_stock === 'boolean') setAutoclaveIncludeStock(db.autoclave.include_stock);
             }
         }
     };
@@ -207,7 +244,7 @@ export function App() {
             }
         }, 1000);
         return () => clearTimeout(timer);
-    }, [assignments, stageList, dbComponents, dbCatalog, dbDiagrams, dbBom, autoclavePatterns, autoclaveInventoryB, autoclaveManualCart, dataBasis]);
+    }, [assignments, stageList, dbComponents, dbCatalog, dbDiagrams, dbBom, autoclavePatterns, autoclaveInventoryB, autoclaveManualCart, dataBasis, patternBasis, batchNo, autoclaveIncludeStock]);
 
     const handleImport = (e) => {
         const file = e.target.files[0]; if (!file) return;
@@ -260,6 +297,8 @@ export function App() {
             setAutoclaveInventoryB(DEFAULT_AUTOCLAVE_GROUP_B); setAutoclaveManualCart([]); setNewStage(""); setQty(1);
             setDataSource(null);
             setDataBasis(defaultDataBasis({ components: DEFAULT_COMPONENTS, catalog: DEFAULT_CATALOG, diagrams: DEFAULT_DIAGRAMS, bom: DEFAULT_BOM }));
+            setPatternBasis(defaultPatternBasis());
+            setBatchNo(""); setAutoclaveIncludeStock(false);
             setConfigError(null);
             setAutoSaveStatus("已重設為預設值");
             setTimeout(() => setAutoSaveStatus(""), 3000);
@@ -299,6 +338,10 @@ export function App() {
         setAssignments([...assignments, { id: newAssignmentId(), "Stage": targetStage, "SOP No.": parseInt(selectedTubingId, 10), "Name": selectedTubingData.Name, "Qty": qtyValue, "Is_Stock": useStock, "Material_Code": useStock ? selectedTubingData.Stock_Code : null }]);
     };
     const handleDeleteAssignment = (id) => { setAssignments(assignments.filter(a => a.id !== id)); };
+    // QtyCell only commits positive integers, so this never writes NaN or 0.
+    const handleUpdateAssignmentQty = (id, value) => {
+        setAssignments(assignments.map(a => a.id === id ? { ...a, Qty: value } : a));
+    };
 
     return (
         <div className="flex min-h-screen bg-white">
@@ -340,6 +383,10 @@ export function App() {
                 <div className="min-h-[500px]">
                     {activeTab === 'plan' && (<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="md:col-span-1 border p-4 rounded bg-gray-50">
+                            <div className="mb-4">
+                                <label htmlFor="batchNo" className="block text-sm font-medium mb-1">批號 / 工單號 (Batch No.)</label>
+                                <input id="batchNo" className="w-full border p-2 text-sm rounded" value={batchNo} onChange={e => setBatchNo(e.target.value)} placeholder="印在所有報表；未填則留空白供手寫" />
+                            </div>
                             <h3 className="text-xl font-bold mb-4">Stage Manager</h3>
                             <div className="mb-4 space-y-2">
                                 <div className="flex gap-2"><input className="flex-1 border p-2 text-sm rounded" placeholder="New Stage" value={newStage} onChange={e => setNewStage(e.target.value)} /><button className="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center" onClick={handleAddStage}><Icons.Plus className="w-4 h-4" /></button></div>
@@ -356,23 +403,25 @@ export function App() {
                         </div>
                         <div className="md:col-span-2">
                             <h3 className="text-xl font-bold mb-4">Current Assignments</h3>
-                            {assignments.length === 0 ? <div className="bg-blue-50 p-4 rounded text-blue-700">No assignments yet.</div> : (<div>{[...new Set(assignments.map(a => a.Stage))].map(stage => (<div key={stage} className="mb-6"><div className="font-bold text-lg mb-2 text-gray-700">📍 {stage}</div><table className="w-full border-collapse text-sm"><thead><tr className="bg-gray-100 border-b"><th className="p-2 text-left">SOP No.</th><th className="p-2 text-left">Name</th><th className="p-2 text-left">Qty</th><th className="p-2 text-left">Is Stock</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{assignments.filter(a => a.Stage === stage).map((row, idx) => (<tr key={row.id || idx} className="border-b"><td className="p-2">{row['SOP No.']}</td><td className="p-2">{row.Name}</td><td className="p-2">{row.Qty}</td><td className="p-2">{row.Is_Stock ? "Yes" : "No"}</td><td className="p-2 text-center"><button onClick={() => handleDeleteAssignment(row.id)} className="text-red-500 hover:text-red-700"><Icons.Trash2 className="w-4 h-4" /></button></td></tr>))}</tbody></table></div>))}</div>)}
+                            {assignments.length === 0 ? <div className="bg-blue-50 p-4 rounded text-blue-700">No assignments yet.</div> : (<div>{[...new Set(assignments.map(a => a.Stage))].map(stage => (<div key={stage} className="mb-6"><div className="font-bold text-lg mb-2 text-gray-700">📍 {stage}</div><table className="w-full border-collapse text-sm"><thead><tr className="bg-gray-100 border-b"><th className="p-2 text-left">SOP No.</th><th className="p-2 text-left">Name</th><th className="p-2 text-left">Qty</th><th className="p-2 text-left">Is Stock</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{assignments.filter(a => a.Stage === stage).map((row, idx) => (<tr key={row.id || idx} className="border-b"><td className="p-2">{row['SOP No.']}</td><td className="p-2">{row.Name}</td><td className="p-2"><QtyCell value={row.Qty} onCommit={v => handleUpdateAssignmentQty(row.id, v)} /></td><td className="p-2">{row.Is_Stock ? "Yes" : "No"}</td><td className="p-2 text-center"><button onClick={() => handleDeleteAssignment(row.id)} className="text-red-500 hover:text-red-700"><Icons.Trash2 className="w-4 h-4" /></button></td></tr>))}</tbody></table></div>))}</div>)}
                         </div>
                     </div>)}
                     {activeTab === 'picking' && (
                         <div>
-                            <div dangerouslySetInnerHTML={{ __html: generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, { sourceLabel: dataSource, dataBasisLabel }) }} />
+                            <div dangerouslySetInnerHTML={{ __html: generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, provenance) }} />
                             <div className="mt-4 text-right">
                                 {/* Regenerated on click so the download carries its own generation time. */}
-                                <button className="st-btn" onClick={() => downloadHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, { sourceLabel: dataSource, dataBasisLabel }), "Picking_List.html")}>📥 Download</button>
+                                <button className="st-btn mr-2" onClick={() => printHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, provenance))}>🖨️ Print</button>
+                                <button className="st-btn" onClick={() => downloadHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, provenance), "Picking_List.html")}>📥 Download</button>
                             </div>
                         </div>
                     )}
                     {activeTab === 'assembly' && (
                         <div>
-                            <div dangerouslySetInnerHTML={{ __html: generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, { sourceLabel: dataSource, dataBasisLabel }) }} />
+                            <div dangerouslySetInnerHTML={{ __html: generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, provenance) }} />
                             <div className="mt-4 text-right">
-                                <button className="st-btn" onClick={() => downloadHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, { sourceLabel: dataSource, dataBasisLabel }), "Assembly_Guide.html")}>📥 Download</button>
+                                <button className="st-btn mr-2" onClick={() => printHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, provenance))}>🖨️ Print</button>
+                                <button className="st-btn" onClick={() => downloadHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, provenance), "Assembly_Guide.html")}>📥 Download</button>
                             </div>
                         </div>
                     )}
@@ -388,12 +437,13 @@ export function App() {
                             </div>
                             <div dangerouslySetInnerHTML={{ __html: partAHTML() }} />
                             <div className="mt-4 text-right">
+                                <button className="st-btn mr-2" onClick={() => printHtml(partAHTML())}>🖨️ Print</button>
                                 <button className="st-btn" onClick={() => downloadHtml(partAHTML(), "SOP-000022_Attachment2_PartA.html")}>📥 Download</button>
                             </div>
                         </div>
                     )}
-                    {activeTab === 'autoclave' && <AutoclaveModule dataSource={dataSource} dataBasisLabel={dataBasisLabel} plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
-                    {activeTab === 'database' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><DataBasisEditor dataBasis={dataBasis} dataBasisLabel={dataBasisLabel} isCurrent={!!dataBasis && dataBasis.fingerprint === sopFingerprint} onRecord={handleRecordDataBasis} /><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} dbBom={dbBom} setDbBom={setDbBom} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} assignments={assignments} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
+                    {activeTab === 'autoclave' && <AutoclaveModule provenance={{ ...provenance, patternBasisLabel }} includeStock={autoclaveIncludeStock} setIncludeStock={setAutoclaveIncludeStock} onRestoreDefaultPatterns={handleRestoreDefaultPatterns} plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
+                    {activeTab === 'database' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><DataBasisEditor id="sop-data" title="📑 Data Basis (資料依據)" scope="Components、Catalog、示意圖與 BOM" example="SOP-000022 v9.0" dataBasis={dataBasis} dataBasisLabel={dataBasisLabel} isCurrent={!!dataBasis && dataBasis.fingerprint === sopFingerprint} onRecord={handleRecordDataBasis} /><DataBasisEditor id="patterns" title="📑 Pattern Basis (滅菌 Pattern 依據)" scope="Autoclave 分頁的滅菌 Pattern" example="SOP-000077 v11.0" dataBasis={patternBasis} dataBasisLabel={patternBasisLabel} isCurrent={!!patternBasis && patternBasis.fingerprint === patternFingerprint} onRecord={handleRecordPatternBasis} /><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} dbBom={dbBom} setDbBom={setDbBom} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} assignments={assignments} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
                 </div>
             </div>
         </div>

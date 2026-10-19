@@ -90,6 +90,18 @@
  */
 
 /**
+ * What a report's provenance header records. Every field is optional: a
+ * missing label is simply not printed, a missing batch number prints a blank
+ * line to write on.
+ * @typedef {object} ReportProvenance
+ * @property {string|null} [sourceLabel]       Imported filename, or null for built-in defaults.
+ * @property {string} [dataBasisLabel]         SOP revision the SOP data was checked against.
+ * @property {string} [patternBasisLabel]      SOP revision the loading patterns were checked against.
+ * @property {string} [batchNo]                Batch / work-order number.
+ * @property {Date} [generatedAt]
+ */
+
+/**
  * One zone load within a cycle.
  * @typedef {object} LoadedEntry
  * @property {string} zone
@@ -121,6 +133,9 @@
  * The exported / imported config payload.
  * @typedef {object} ConfigPayload
  * @property {string} version
+ * @property {{reference: string, fingerprint: string}|null} [data_basis]     SOP-000022 data basis.
+ * @property {{reference: string, fingerprint: string}|null} [pattern_basis]  SOP-000077 patterns basis.
+ * @property {string} [batch_no]
  * @property {Assignment[]} assignments
  * @property {string[]} stage_list
  * @property {object} database
