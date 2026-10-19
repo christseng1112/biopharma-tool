@@ -22,6 +22,7 @@ import { formatTimestamp } from './format.js';
 export const CSS_STRING = `
 <style>
 .report-container { font-family: Arial, sans-serif; background-color: white; padding: 5px; }
+.report-container h1 { font-size: 16px; line-height: 1.25; margin: 0 0 4px; }
 .stage-header { color: #2c3e50; font-size: 1.2rem; font-weight: bold; border-left: 5px solid #ff4b4b; padding-left: 10px; margin-top: 25px; margin-bottom: 10px; background-color: transparent; }
 .custom-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px; color: #000; }
 .custom-table th { background-color: #e0e0e0; color: black; border: 1px solid black; padding: 8px; text-align: center; font-weight: bold; }
@@ -32,13 +33,12 @@ export const CSS_STRING = `
 .bg-light { background-color: #f9f9f9 !important; text-align: center; }
 .total-detail { font-size: 0.85em; color: #555; display: block; margin-top: 2px; }
 .picking-title { font-size: 1.1rem; font-weight: bold; color: #333; margin-top: 20px; border-bottom: 2px solid #ccc; padding-bottom: 5px; }
-.provenance { border: 1px solid #bbb; background: #f7f7f7; font-size: 12px; color: #333; margin: 10px 0 18px; padding: 8px 10px; }
-.provenance table { border-collapse: collapse; width: 100%; }
-.provenance td { padding: 2px 6px; vertical-align: top; border: 0; }
-.provenance td.k { color: #555; white-space: nowrap; width: 1%; }
-.form-note { font-size: 12px; color: #555; margin: 4px 0 10px; }
+.provenance { border: 1px solid #ccc; background: #f7f7f7; font-size: 10.5px; line-height: 1.4; color: #333; margin: 4px 0 10px; padding: 4px 8px; }
+.provenance .prov-items { display: flex; flex-wrap: wrap; gap: 0 14px; }
+.provenance .k { color: #666; }
+.form-note { font-size: 11px; color: #555; margin: 2px 0 6px; }
 .form-blank { min-width: 90px; }
-.provenance .uncontrolled { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #bbb; font-weight: bold; color: #8a2b2b; }
+.provenance .uncontrolled { margin-top: 3px; padding-top: 3px; border-top: 1px dashed #ccc; font-size: 10px; font-weight: bold; color: #8a2b2b; }
 .schedule-summary { border: 1px solid #ccc; background: #fafafa; padding: 8px 10px; margin-bottom: 15px; font-size: 13px; }
 .cycle-header { background: #2c3e50; color: white; font-weight: bold; padding: 6px 10px; margin-top: 18px; font-size: 14px; }
 .cycle-header .cycle-meta { font-weight: normal; font-size: 0.85em; color: #cfd8e3; }
@@ -46,7 +46,7 @@ export const CSS_STRING = `
 .warn-block h3 { margin: 0 0 6px; font-size: 14px; }
 .warn-block ul { margin: 0; padding-left: 20px; }
 .done-col { width: 8%; }
-.batch-blank { display: inline-block; min-width: 160px; border-bottom: 1px solid #333; }
+.batch-blank { display: inline-block; min-width: 120px; border-bottom: 1px solid #333; }
 /* Printed reports are filed with the batch record: table headers repeated on
    every page, and no table row or cycle heading split across a page break.
    No @page size on purpose: Chrome and Edge hide the portrait/landscape choice
@@ -100,9 +100,11 @@ export function provenanceHTML({ title, sourceLabel, dataBasisLabel, patternBasi
         ? (batch ? `<b>${escapeHtml(batch)}</b>` : '<span class="batch-blank">&nbsp;</span>')
         : escapeHtml(v));
 
-    return '<div class="provenance"><table>'
-        + rows.map(([k, v]) => `<tr><td class="k">${escapeHtml(k)}</td><td>${cell(v)}</td></tr>`).join("")
-        + '</table>'
+    // Laid out as one wrapping line of label/value pairs rather than a row per
+    // field: stacked rows took 27-33% of a printed A4 page before the content.
+    return '<div class="provenance"><div class="prov-items">'
+        + rows.map(([k, v]) => `<span class="prov-item"><span class="k">${escapeHtml(k)}</span> ${cell(v)}</span>`).join("")
+        + '</div>'
         + '<div class="uncontrolled">⚠️ 本文件由工具自動產生，為非受控文件 (UNCONTROLLED DOCUMENT). '
         + '正式生產請依所屬品質系統之受控文件作業。</div>'
         + '</div>';

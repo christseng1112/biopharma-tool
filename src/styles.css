@@ -16,6 +16,13 @@ body {
     padding: 5px;
 }
 
+.report-container h1 {
+    font-size: 16px;
+    font-weight: bold;
+    line-height: 1.25;
+    margin: 0 0 4px;
+}
+
 .stage-header {
     color: #2c3e50;
     font-size: 1.2rem;
@@ -95,35 +102,30 @@ body {
 /* Provenance header on generated reports. Mirrors the rules in CSS_STRING
    (src/lib/reports.js) so the in-app preview matches the downloaded file. */
 .provenance {
-    border: 1px solid #bbb;
+    border: 1px solid #ccc;
     background: #f7f7f7;
-    font-size: 12px;
+    font-size: 10.5px;
+    line-height: 1.4;
     color: #333;
-    margin: 10px 0 18px;
-    padding: 8px 10px;
+    margin: 4px 0 10px;
+    padding: 4px 8px;
 }
 
-.provenance table {
-    border-collapse: collapse;
-    width: 100%;
+.provenance .prov-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 14px;
 }
 
-.provenance td {
-    padding: 2px 6px;
-    vertical-align: top;
-    border: 0;
-}
-
-.provenance td.k {
-    color: #555;
-    white-space: nowrap;
-    width: 1%;
+.provenance .k {
+    color: #666;
 }
 
 .provenance .uncontrolled {
-    margin-top: 6px;
-    padding-top: 6px;
-    border-top: 1px dashed #bbb;
+    margin-top: 3px;
+    padding-top: 3px;
+    border-top: 1px dashed #ccc;
+    font-size: 10px;
     font-weight: bold;
     color: #8a2b2b;
 }
