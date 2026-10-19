@@ -8,6 +8,7 @@ import { normalizePatterns, isPlainObject, reindexByNumber } from '../lib/normal
 import { APP_VERSION, AUTOSAVE_KEY, LEGACY_AUTOSAVE_KEYS, validateConfig } from '../lib/config.js';
 import { generatePickingListHTML, generateAssemblyGuideHTML } from '../lib/reports.js';
 import { downloadHtml, downloadJson } from '../lib/download.js';
+import { formatFileStamp } from '../lib/format.js';
 import {
     DEFAULT_COMPONENTS, DEFAULT_CATALOG, DEFAULT_DIAGRAMS, DEFAULT_BOM,
     DEFAULT_STAGES, DEFAULT_AUTOCLAVE_GROUP_B, DEFAULT_AUTOCLAVE_PATTERNS_DATA
@@ -62,6 +63,8 @@ export function App() {
     }, [selectedTubingId, stockCodeExists]);
 
     // --- AUTO SAVE ---
+    /** How many quarantined copies of an unreadable autosave to keep. */
+    const CORRUPT_BACKUP_LIMIT = 3;
     const [autoSaveStatus, setAutoSaveStatus] = useState("");
     // A4: block the debounced writer until the load attempt has resolved, so a
     // failed load can never be overwritten by default state one second later.
@@ -123,7 +126,16 @@ export function App() {
             // A4: never discard data we could not read — park it under a
             // timestamped key so it stays recoverable, and tell the user.
             const backupKey = `${AUTOSAVE_KEY}_CORRUPT_${Date.now()}`;
-            try { localStorage.setItem(backupKey, saved); } catch (e) { console.error("Backup failed", e); }
+            try {
+                // Backups accumulated without bound. localStorage has a quota,
+                // and filling it would make the ordinary autosave fail — losing
+                // live work to protect stale copies. Keep the newest few.
+                const prefix = `${AUTOSAVE_KEY}_CORRUPT_`;
+                const older = Object.keys(localStorage).filter(k => k.startsWith(prefix)).sort();
+                older.slice(0, Math.max(0, older.length - (CORRUPT_BACKUP_LIMIT - 1)))
+                    .forEach(k => localStorage.removeItem(k));
+                localStorage.setItem(backupKey, saved);
+            } catch (e) { console.error("Backup failed", e); }
             console.error(reason, details);
             setConfigError({
                 title: "自動存檔讀取失敗，已改用預設資料",
@@ -200,7 +212,10 @@ export function App() {
     };
 
     const handleExport = () => {
-        downloadJson(buildConfigPayload(), "biopharma_prod_config.json");
+        // Timestamped so successive exports do not overwrite each other in the
+        // downloads folder, and so the filename itself identifies which save it
+        // is when it later shows up as a report's Data source.
+        downloadJson(buildConfigPayload(), `biopharma_prod_config_${formatFileStamp(new Date())}.json`);
     };
 
     const handleResetDefaults = () => {
@@ -326,7 +341,7 @@ export function App() {
                             </div>
                         </div>
                     )}
-                    {activeTab === 'autoclave' && <AutoclaveModule plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
+                    {activeTab === 'autoclave' && <AutoclaveModule plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} dataSource={dataSource} />}
                     {activeTab === 'database' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} dbBom={dbBom} setDbBom={setDbBom} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} assignments={assignments} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
                 </div>
             </div>
