@@ -303,7 +303,10 @@ describe('regression: silent omission and unit mixing', () => {
         const html = generatePickingListHTML(
             [task({ 'SOP No.': 1, Qty: 1 }), task({ 'SOP No.': 2, Qty: 1 })],
             { 1: [{ Code: 'X1', Len: 30, Count: 1 }], 2: [{ Code: 'X1', Count: 1 }] },
-            { X1: { Name: 'Tube-or-piece', Unit: 'cm' } }, catalog
+            { X1: { Name: 'Tube-or-piece', Unit: 'cm' } }, catalog,
+            // Fixed time: the header's timestamp would otherwise contain a 31
+            // whenever the clock's day, minute or second is 31.
+            { generatedAt: new Date(2026, 0, 2, 3, 4, 5) }
         );
         expect(html).not.toMatch(/\b31\b/);
         expect(html).toContain('30 cm');
