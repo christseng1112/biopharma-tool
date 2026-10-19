@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generatePickingListHTML, generateAssemblyGuideHTML, provenanceHTML } from '../src/lib/reports.js';
+import { generatePickingListHTML, generateAssemblyGuideHTML, provenanceHTML, generateAttachment2PartAHTML, generateAttachment2PartBHTML } from '../src/lib/reports.js';
 import { APP_VERSION } from '../src/lib/config.js';
 
 const components = {
@@ -296,5 +296,64 @@ describe('regression: silent omission and unit mixing', () => {
         expect(html).not.toContain('同時以管材與配件計量');
         expect(html).toContain('180 cm');
         expect(html).toContain('3 ea');
+    });
+});
+
+describe('SOP-000022 Attachment 2 forms', () => {
+    const rowsA = [
+        { no: 13, name: '1/2" C-Flex 45 w/ ReadyMate', total: 3, variants: [{ sopNo: 13, name: 'A', qty: 2 }, { sopNo: 132, name: 'B', qty: 1 }], stages: [{ stage: 'Harvest', qty: 3 }] },
+        { no: 21, name: 'Pump Tubing Set 620', total: 1, variants: [{ sopNo: 21, name: 'P', qty: 1 }], stages: [{ stage: 'Harvest', qty: 1 }] }
+    ];
+    const index = new Map([['S13', { no: 13, name: 'S13' }], ['S21', { no: 21, name: 'S21' }]]);
+    const schedule = [
+        { cycleNumber: 1, pattern: { name: 'Pattern 3', program: 'P01' }, loadedEntries: [{ zone: 'A', item: 'S13', qty: 2 }, { zone: 'B', item: 'Forceps', qty: 4 }] },
+        { cycleNumber: 2, pattern: { name: 'Pattern 7', program: 'P01' }, loadedEntries: [{ zone: 'B', item: 'Forceps', qty: 4 }] },
+        { cycleNumber: 3, pattern: { name: 'Pattern 4', program: 'P01' }, loadedEntries: [{ zone: 'B', item: 'S21', qty: 1 }, { zone: 'A', item: 'S13', qty: 1 }] }
+    ];
+
+    it('Part A lists each number with its amount, the variant split and a total', () => {
+        const html = generateAttachment2PartAHTML(rowsA, { stages: ['Harvest'] });
+        expect(html).toContain('<b>13</b>');
+        expect(html).toContain('No. 132 B: 1');
+        expect(html).toMatch(/Total<\/b><\/td><td class="text-center"><b>4<\/b>/);
+        expect(html).toContain('Stages included');
+    });
+
+    it('Part A says so when nothing is assembled', () => {
+        expect(generateAttachment2PartAHTML([], { stages: [] })).toContain('no assembled tubing sets');
+    });
+
+    it('Part B writes one slash-separated line per load that has tubing sets', () => {
+        const html = generateAttachment2PartBHTML(schedule, index);
+        expect(html).toContain('<b>13 (2)</b>');
+        expect(html).toContain('<b>13 (1) / 21 (1)</b>');
+        expect(html).toContain('Load 1');
+        expect(html).not.toContain('Load 2');
+        expect(html).toContain('Forceps x4');
+    });
+
+    it('Part B leaves cycle number, expiry and signature blank', () => {
+        const html = generateAttachment2PartBHTML(schedule, index);
+        expect((html.match(/<td class="form-blank"><\/td>/g) || []).length).toBe(6);
+    });
+
+    it('Part B says so when no tubing sets are scheduled', () => {
+        expect(generateAttachment2PartBHTML([schedule[1]], index)).toContain('no tubing sets in the schedule');
+    });
+
+    it('both forms carry the provenance header', () => {
+        const prov = { provenance: { sourceLabel: 'f.json', dataBasisLabel: 'SOP-000022 v9.0' } };
+        [generateAttachment2PartAHTML(rowsA, { stages: ['H'], ...prov }), generateAttachment2PartBHTML(schedule, index, prov)].forEach(html => {
+            expect(html).toContain('UNCONTROLLED DOCUMENT');
+            expect(html).toContain('SOP-000022 v9.0');
+        });
+    });
+
+    it('escapes names and stages', () => {
+        const evil = '<img src=x onerror=alert(1)>';
+        const a = generateAttachment2PartAHTML([{ ...rowsA[0], name: evil, stages: [{ stage: evil, qty: 1 }] }], { stages: [evil] });
+        const b = generateAttachment2PartBHTML([{ ...schedule[0], pattern: { name: evil, program: 'P01' } }], index);
+        expect(a).not.toContain('<img');
+        expect(b).not.toContain('<img');
     });
 });

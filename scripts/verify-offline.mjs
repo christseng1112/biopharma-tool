@@ -114,7 +114,7 @@ if (!browser) {
     check('no page errors', errors.length === 0, errors.join('\n      '));
 
     if (mounted) {
-        for (const tab of ['Picking List', 'Assembly Guide', 'Autoclave Calc', 'Database']) {
+        for (const tab of ['Picking List', 'Assembly Guide', '附件 2 Part A', 'Autoclave Calc', 'Database']) {
             await page.getByRole('button', { name: new RegExp(tab) }).click();
             await page.waitForTimeout(400);
             const body = await page.textContent('#root');

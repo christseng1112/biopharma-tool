@@ -4,7 +4,7 @@
 
 本工具封裝於單一 HTML 檔案 `index.html` 中，無需伺服器部署，點擊即可在瀏覽器中運行。
 
-**目前版本：v30.12**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
+**目前版本：v30.13**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
 
 ---
 
@@ -20,6 +20,7 @@
 - **報表生成**：
   - **Picking List (總領料單)**：自動彙總所有階段所需的總管材長度與接頭數量。
   - **Assembly Guide (裝配工單)**：針對非庫存品生成詳細的組裝指引與圖示。
+  - **附件 2 Part A (Assembled Amount)**：依 SOP-000022 附件 2 的 Number 跨製程階段加總組裝套數，可勾選要納入的階段；變體 (132/142/212) 併入原編號 (13/14/21) 並列出明細。
 
 ### 🌡️ 2. 滅菌鍋計算 (Autoclave Calculator)
 
@@ -34,6 +35,7 @@
   - **最佳解 (Optimal)** — 已窮舉搜尋，不存在更短的排程
   - **近似解 (Heuristic)** — 品項過多或搜尋預算用盡，僅提供貪婪解
   - **不完整 (Incomplete)** — 有品項未能排入，請見下方警示
+- **附件 2 Part B (Sterilization Records)**：每鍋排程卡片標示管組編號 (No.)，並產生可複製的 `13 (2) / 21 (1)` 字串與套數；排程下方提供完整 Part B 表可下載。Load # 為排程順序，Cycle No.、Expiry Date、簽名欄位留空供現場填寫。
 - **未排程項目一律回報**，分為兩類：
   - **Unassignable**：沒有任何 Pattern 的 Zone 允許此品項。
   - **Not Scheduled**：超出 100 循環上限，未排入任何批次。
@@ -76,6 +78,7 @@ src/
   lib/reports.js            領料單與裝配工單的 HTML 產生器
   lib/config.js             APP_VERSION、存檔 key、validateConfig
   lib/dataBasis.js          資料依據指紋與報表標示
+  lib/forms.js              SOP-000022 附件 2 Part A / Part B 的編號對應與彙總
   lib/download.js           檔案下載
   lib/globalErrorHandler.js 全域錯誤安全網
   data/defaults.js          預設資料集
@@ -122,14 +125,15 @@ npm run check           # test + build + verify:offline
    - 建立製程階段。
    - 選擇 SOP 管組編號並輸入數量（數量必須是大於 0 的整數，否則 Add 按鈕會停用）。
    - 系統會提示該項目是否為庫存品。
-3. **📋 Picking List / 📦 Assembly Guide**
-   - 查看並下載領料單與組裝工單。
+3. **📋 Picking List / 📦 Assembly Guide / 📝 附件 2 Part A**
+   - 查看並下載領料單、組裝工單與附件 2 Part A；Part A 可勾選要納入的製程階段。
    - 每份報表的標題下方均附有來源區塊：產生時間、工具版本、資料來源，以及「非受控文件」聲明。
 4. **🌡️ Autoclave Calc**
    - 系統會自動帶入 Plan 分頁中需要組裝的管組。
    - 若有額外器具 (如鑷子、濾器)，可在左側手動加入。
    - 系統即時計算並顯示滅菌排程建議。
    - **請務必檢查是否出現 Unassignable 或 Not Scheduled 區塊** — 這些品項不在排程中。
+   - 每鍋卡片底部的「附件 2 Part B」字串可直接複製填入；完整 Part B 表在排程下方。
 5. **⚙️ Database**
    - 新增／編輯／刪除元件庫與目錄項目，並編輯裝配圖與 BOM。
    - 變更需按各區塊的 **Save Changes** 才會套用；結果會以區塊內的訊息列回報。

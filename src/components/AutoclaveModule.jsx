@@ -2,12 +2,25 @@ import { useState, useMemo } from 'react';
 import { Icons } from './Icons.jsx';
 import { normalizeName } from '../lib/normalize.js';
 import { calculateSchedule, MAX_CYCLES, QUALITY } from '../lib/scheduler.js';
+import { buildFormNumberIndex, cycleTubingSummary } from '../lib/forms.js';
+import { generateAttachment2PartBHTML } from '../lib/reports.js';
+import { downloadHtml } from '../lib/download.js';
+import { Notice, useNotice } from './Notice.jsx';
 
-export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, setPatternsList, inventoryB, setInventoryB, manualCart, setManualCart }) => {
+/** "No. 13" tag shown before a tubing set so it can be matched to the SOP-000022 forms. */
+const FormNoTag = ({ no }) => (
+    <span className="text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 px-1 rounded mr-1 whitespace-nowrap">No. {no}</span>
+);
+
+export const AutoclaveModule = ({ dataSource, dataBasisLabel, plannerAssignments, dbCatalog, patternsList, setPatternsList, inventoryB, setInventoryB, manualCart, setManualCart }) => {
     const [selectedItem, setSelectedItem] = useState("");
     const [quantity, setQuantity] = useState(1);
     const [expandedPatternId, setExpandedPatternId] = useState(null);
     const [includeStock, setIncludeStock] = useState(false);
+    const [notice, showNotice] = useNotice();
+    // Maps a (normalized) item name back to its SOP-000022 form Number, folding
+    // variants such as 132 into 13. Group B equipment has no entry.
+    const formIndex = useMemo(() => buildFormNumberIndex(dbCatalog), [dbCatalog]);
 
     const plannerQueue = useMemo(() => {
         const queue = [];
@@ -45,6 +58,20 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
         () => calculateSchedule(combinedCart, patternsList),
         [combinedCart, patternsList]
     );
+
+    const partBHTML = () => generateAttachment2PartBHTML(schedule, formIndex, { provenance: { sourceLabel: dataSource, dataBasisLabel } });
+    const hasTubingInSchedule = schedule.some(c => cycleTubingSummary(c, formIndex).sets.length > 0);
+
+    const copyPartBLine = async (text) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            showNotice(`已複製：${text}`, 'success');
+        } catch {
+            // Clipboard access can be refused (permissions, non-secure context).
+            // The line itself is click-to-select, so it can still be copied by hand.
+            showNotice('無法存取剪貼簿，請點選該行文字後手動複製。', 'error');
+        }
+    };
 
     const qualityBadge = {
         // The search enumerates sequences of patterns; the packing inside each
@@ -115,7 +142,7 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
             <div className="lg:col-span-1 space-y-6">
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 shadow-sm">
                     <div className="flex justify-between items-start mb-2"><h3 className="font-bold text-blue-800 flex items-center gap-2"><Icons.RefreshCw className="w-4 h-4" /> Imported from Planner</h3><div className="flex items-center gap-1"><input type="checkbox" id="incStock" checked={includeStock} onChange={e => setIncludeStock(e.target.checked)} className="cursor-pointer" /><label htmlFor="incStock" className="text-xs text-blue-800 cursor-pointer select-none">Include Stock</label></div></div>
-                    <ul className="space-y-1 max-h-40 overflow-y-auto custom-scroll pr-2">{plannerQueue.map((item, idx) => (<li key={idx} className="flex justify-between text-sm bg-white p-1 rounded border border-blue-100"><span className="truncate w-48" title={item.item}>{item.item}</span><span className="font-bold text-blue-600">x{item.qty}</span></li>))}</ul>
+                    <ul className="space-y-1 max-h-40 overflow-y-auto custom-scroll pr-2">{plannerQueue.map((item, idx) => (<li key={idx} className="flex justify-between text-sm bg-white p-1 rounded border border-blue-100"><span className="truncate w-48" title={item.item}>{formIndex.get(item.item) && <FormNoTag no={formIndex.get(item.item).no} />}{item.item}</span><span className="font-bold text-blue-600">x{item.qty}</span></li>))}</ul>
                 </div>
                 <div className="bg-white p-6 rounded-lg shadow-sm border">
                     <h2 className="text-lg font-semibold mb-4 flex items-center gap-2"><Icons.Plus className="w-5 h-5 text-green-600" /> Add Extra Items (Group B)</h2>
@@ -134,6 +161,7 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
                             </span>
                         )}
                     </h2>
+                    <Notice notice={notice} />
                     {schedule.length === 0 && unassignable.length === 0 && unscheduled.length === 0 ? (<div className="text-center py-12 text-gray-400"><Icons.Info className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>Add items to generate schedule</p></div>) : (
                         <div className="space-y-6">
                             {unassignable.length > 0 && (<div className="bg-red-50 border border-red-200 rounded-lg p-4"><h3 className="text-red-800 font-bold flex items-center gap-2"><Icons.AlertCircle className="w-4 h-4" /> Unassignable Items <span className="font-normal text-xs">— 沒有任何 Pattern 的 Zone 允許此品項</span></h3><ul className="list-disc list-inside mt-2 text-xs text-red-700">{unassignable.map((u, i) => <li key={i}>{u.item} (x{u.qty})</li>)}</ul></div>)}
@@ -141,12 +169,34 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
                             {schedule.map(cycle => (
                                 <div key={cycle.cycleNumber} className="relative pl-8 border-l-2 border-gray-200 pb-2">
                                     <div className="absolute -left-3 top-0 bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm">{cycle.cycleNumber}</div>
-                                    <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden"><div className="bg-gray-50 p-2 border-b flex justify-between items-center"><div><span className="font-bold text-gray-800">{cycle.pattern.name}</span> <span className="text-xs text-gray-500">({cycle.pattern.program})</span></div><span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">{cycle.loadedItems.length} items</span></div><div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">{cycle.loadedItems.map((detail, i) => (<div key={i} className="text-sm text-gray-700 flex items-start gap-2"><Icons.ArrowRight className="w-3 h-3 text-gray-300 mt-1 flex-shrink-0" /><span>{detail}</span></div>))}</div></div>
+                                    <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden"><div className="bg-gray-50 p-2 border-b flex justify-between items-center"><div><span className="font-bold text-gray-800">{cycle.pattern.name}</span> <span className="text-xs text-gray-500">({cycle.pattern.program})</span></div><span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">{cycle.loadedItems.length} items</span></div><div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">{cycle.loadedEntries.map((e, i) => (<div key={i} className="text-sm text-gray-700 flex items-start gap-2"><Icons.ArrowRight className="w-3 h-3 text-gray-300 mt-1 flex-shrink-0" /><span>[{e.zone}] {e.qty}x {formIndex.get(e.item) && <FormNoTag no={formIndex.get(e.item).no} />}{e.item}</span></div>))}</div>
+                                        {(() => {
+                                            const partB = cycleTubingSummary(cycle, formIndex);
+                                            if (partB.sets.length === 0) return null;
+                                            return (
+                                                <div className="border-t bg-indigo-50 px-3 py-2 text-sm flex flex-wrap items-center gap-2">
+                                                    <span className="text-xs font-bold text-indigo-800">附件 2 Part B:</span>
+                                                    <span className="font-mono font-bold select-all">{partB.text}</span>
+                                                    <span className="text-xs text-indigo-700">· 共 {partB.totalSets} 套</span>
+                                                    <button onClick={() => copyPartBLine(partB.text)} className="ml-auto text-xs bg-white border border-indigo-300 text-indigo-800 px-2 py-0.5 rounded hover:bg-indigo-100" title="Copy">📋 Copy</button>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     )}
                 </div>
+                {hasTubingInSchedule && (
+                    <div className="bg-white p-6 rounded-lg shadow-sm border">
+                        <div dangerouslySetInnerHTML={{ __html: partBHTML() }} />
+                        <div className="mt-4 text-right">
+                            {/* Regenerated on click so the download carries its own generation time. */}
+                            <button className="st-btn" onClick={() => downloadHtml(partBHTML(), "SOP-000022_Attachment2_PartB.html")}>📥 Download</button>
+                        </div>
+                    </div>
+                )}
                 <div className="bg-gray-50 p-4 rounded border">
                     <h3 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><Icons.Settings className="w-4 h-4" /> Pattern Configuration</h3>
                     <button onClick={handleAddPattern} className="text-xs bg-white border px-2 py-1 rounded mb-4 hover:bg-gray-100">+ New Pattern</button>

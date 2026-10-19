@@ -1,5 +1,6 @@
 import { escapeHtml } from './normalize.js';
 import { APP_VERSION } from './config.js';
+import { cycleTubingSummary } from './forms.js';
 
 /**
  * Report generators. Output is both rendered in-app (via dangerouslySetInnerHTML)
@@ -26,6 +27,8 @@ export const CSS_STRING = `
 .provenance table { border-collapse: collapse; width: 100%; }
 .provenance td { padding: 2px 6px; vertical-align: top; border: 0; }
 .provenance td.k { color: #555; white-space: nowrap; width: 1%; }
+.form-note { font-size: 12px; color: #555; margin: 4px 0 10px; }
+.form-blank { min-width: 90px; }
 .provenance .uncontrolled { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #bbb; font-weight: bold; color: #8a2b2b; }
 </style>
 `;
@@ -224,5 +227,78 @@ export function generatePickingListHTML(tasks, customBomMap, componentsDb, catal
     }
 
     htmlParts.push('</div>');
+    return htmlParts.join("");
+}
+
+/**
+ * SOP-000022 Attachment 2 Part A — Assembled Amount of Tubing Sets.
+ *
+ * `rows` comes from assembledAmounts(): one row per form Number, summed across
+ * the selected stages, variants folded into their base number. Only numbers
+ * with a non-zero amount are listed; the breakdown column lets the total be
+ * checked against the plan.
+ */
+export function generateAttachment2PartAHTML(rows, { stages = [], provenance = {} } = {}) {
+    const title = 'SOP-000022 Attachment 2 Part A — Assembled Amount of Tubing Sets (組裝數量)';
+    const htmlParts = [
+        `<div class="report-container"><h1>${title}</h1>`,
+        provenanceHTML({ title, ...provenance }),
+        `<div class="form-note">納入的製程階段 (Stages included): ${stages.length > 0 ? stages.map(escapeHtml).join('、') : '(none)'}</div>`
+    ];
+
+    if (rows.length === 0) {
+        htmlParts.push('<p style="padding:10px;">所選階段沒有需要組裝的管組 (no assembled tubing sets).</p></div>');
+        return htmlParts.join("");
+    }
+
+    htmlParts.push('<table class="custom-table"><thead><tr><th style="width:10%;">Number</th><th style="width:40%;">Assembly Name</th><th style="width:15%;">Amount (set)</th><th style="width:35%;">Breakdown (明細)</th></tr></thead><tbody>');
+    rows.forEach(r => {
+        const detail = [];
+        if (r.variants.length > 1 || (r.variants[0] && r.variants[0].sopNo !== r.no)) {
+            detail.push(r.variants.map(v => `No. ${escapeHtml(v.sopNo)} ${escapeHtml(v.name)}: ${escapeHtml(v.qty)}`).join('<br>'));
+        }
+        detail.push(r.stages.map(st => `${escapeHtml(st.stage)}: ${escapeHtml(st.qty)}`).join('<br>'));
+        htmlParts.push(`<tr><td class="text-center"><b>${escapeHtml(r.no)}</b></td><td>${escapeHtml(r.name)}</td><td class="text-center" style="font-size:1.1em;"><b>${escapeHtml(r.total)}</b></td><td style="font-size:0.9em; color:#555;">${detail.join('<hr style="border:0;border-top:1px dashed #ccc;margin:4px 0;">')}</td></tr>`);
+    });
+    const total = rows.reduce((n, r) => n + r.total, 0);
+    htmlParts.push(`<tr><td colspan="2" style="text-align:right;"><b>Total</b></td><td class="text-center"><b>${escapeHtml(total)}</b></td><td></td></tr>`);
+    htmlParts.push('</tbody></table></div>');
+    return htmlParts.join("");
+}
+
+/**
+ * SOP-000022 Attachment 2 Part B — Sterilization Records.
+ *
+ * One row per scheduled load that contains tubing sets. The autoclave cycle
+ * number, expiry date and signature are left blank: the cycle number is
+ * assigned by the autoclave and the rest is completed on the floor. Group B
+ * equipment in the same load is noted under the load number but kept out of
+ * the form's tubing-set column.
+ */
+export function generateAttachment2PartBHTML(schedule, formIndex, { provenance = {} } = {}) {
+    const title = 'SOP-000022 Attachment 2 Part B — Sterilization Records (滅菌紀錄)';
+    const htmlParts = [
+        `<div class="report-container"><h1>${title}</h1>`,
+        provenanceHTML({ title, ...provenance }),
+        '<div class="form-note">Load # 為工具的排程順序，非滅菌鍋 Cycle No.；Cycle No.、Expiry Date 與 Performed by/Date 請於現場填寫。</div>'
+    ];
+
+    const loads = schedule
+        .map(cycle => ({ cycle, summary: cycleTubingSummary(cycle, formIndex) }))
+        .filter(l => l.summary.sets.length > 0);
+
+    if (loads.length === 0) {
+        htmlParts.push('<p style="padding:10px;">排程中沒有管組 (no tubing sets in the schedule).</p></div>');
+        return htmlParts.join("");
+    }
+
+    htmlParts.push('<table class="custom-table"><thead><tr><th style="width:16%;">Load #<br>(排程順序)</th><th style="width:14%;">Autoclave Cycle No.</th><th style="width:34%;">Number of Tubing Set (amount)<br>(each set separated by slash)</th><th style="width:16%;">Expiry Date of Tubing Sets</th><th style="width:20%;">Performed by/ Date</th></tr></thead><tbody>');
+    loads.forEach(({ cycle, summary }) => {
+        const others = summary.others.length > 0
+            ? `<br><span class="total-detail">+ ${summary.others.map(o => `${escapeHtml(o.item)} x${escapeHtml(o.qty)}`).join(', ')}</span>`
+            : '';
+        htmlParts.push(`<tr><td class="text-center"><b>Load ${escapeHtml(cycle.cycleNumber)}</b><br><span class="total-detail">${escapeHtml(cycle.pattern?.name)} (${escapeHtml(cycle.pattern?.program)})</span>${others}</td><td class="form-blank"></td><td><b>${escapeHtml(summary.text)}</b><br><span class="total-detail">共 ${escapeHtml(summary.totalSets)} 套</span></td><td class="form-blank"></td><td class="form-blank"></td></tr>`);
+    });
+    htmlParts.push('</tbody></table></div>');
     return htmlParts.join("");
 }

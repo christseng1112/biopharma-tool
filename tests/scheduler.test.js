@@ -239,6 +239,28 @@ describe('default dataset', () => {
     });
 });
 
+describe('structured load entries', () => {
+    const entriesMatchStrings = (cycle) => {
+        expect(cycle.loadedEntries.map(e => `[${e.zone}] ${e.qty}x ${e.item}`)).toEqual(cycle.loadedItems);
+    };
+
+    it('mirror the display strings on the greedy path', () => {
+        // 60 items skips the backtracking search, so this is the greedy schedule.
+        const r = calculateSchedule([{ item: 'W', qty: 60 }], [pattern([{ name: 'Z', capacity: 7, allowed: ['W'] }])]);
+        expect(r.quality).toBe(QUALITY.HEURISTIC);
+        r.schedule.forEach(entriesMatchStrings);
+    });
+
+    it('mirror the display strings on the backtracking path', () => {
+        const r = calculateSchedule(
+            [{ item: 'W', qty: 3 }, { item: 'V', qty: 2 }],
+            [pattern([{ name: 'Z', capacity: 2, allowed: ['W', 'V'] }]), pattern([{ name: 'Y', capacity: 3, allowed: ['W'] }], 2)]
+        );
+        expect(r.quality).toBe(QUALITY.OPTIMAL);
+        r.schedule.forEach(entriesMatchStrings);
+    });
+});
+
 describe('determinism', () => {
     // The same set of items must produce the same schedule regardless of the
     // order the operator happened to add them in.

@@ -46,6 +46,9 @@ export const simulateLoad = (inventory, pattern) => {
     const tempInv = inventory.map(i => ({ ...i }));
     let totalLoaded = 0;
     const loadPlan = [];
+    // Structured twin of loadPlan, for consumers that need the item and count
+    // rather than a display string (e.g. the SOP-000022 Attachment 2 Part B line).
+    const loadedEntries = [];
     const zoneUsage = (pattern.zones || []).map(z => ({ ...z, used: 0, assignedItems: {} }));
 
     for (let i = 0; i < zoneUsage.length; i++) {
@@ -69,10 +72,11 @@ export const simulateLoad = (inventory, pattern) => {
                 cand.qty -= take;
                 totalLoaded += take;
                 loadPlan.push(`[${zone.name}] ${take}x ${cand.item}`);
+                loadedEntries.push({ zone: zone.name, item: cand.item, qty: take });
             }
         }
     }
-    return { loadedCount: totalLoaded, loadPlan, remainingInv: tempInv };
+    return { loadedCount: totalLoaded, loadPlan, loadedEntries, remainingInv: tempInv };
 };
 
 /**
@@ -99,7 +103,7 @@ export const runGreedySimulation = (inventory, patterns) => {
         }
         if (!best || best.loadedCount === 0) break;
         currentInventory = best.remainingInv;
-        schedule.push({ pattern: best.pattern, loadedItems: best.loadPlan });
+        schedule.push({ pattern: best.pattern, loadedItems: best.loadPlan, loadedEntries: best.loadedEntries });
     }
     const remaining = currentInventory.filter(i => i.qty > 0).map(i => ({ ...i }));
     return { schedule, remaining };
@@ -179,7 +183,7 @@ export const calculateSchedule = (inventory, patterns) => {
             // Deterministic ordering: most loaded first, ties broken by pattern id.
             candidates.sort((a, b) => (b.loadedCount - a.loadedCount) || (a.pattern.id - b.pattern.id));
             for (const cand of candidates) {
-                solve(cand.remainingInv, [...currentPath, { pattern: cand.pattern, loadedItems: cand.loadPlan }]);
+                solve(cand.remainingInv, [...currentPath, { pattern: cand.pattern, loadedItems: cand.loadPlan, loadedEntries: cand.loadedEntries }]);
             }
         };
         solve(cleanInventory, []);
