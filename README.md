@@ -4,7 +4,7 @@
 
 本工具封裝於單一 HTML 檔案 `index.html` 中，無需伺服器部署，點擊即可在瀏覽器中運行。
 
-**目前版本：v30.13**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
+**目前版本：v30.15**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
 
 ---
 
@@ -12,7 +12,7 @@
 
 ### 🏗️ 1. 管組規劃 (Tubing Planner)
 
-基於 SOP-000022 標準，協助使用者規劃各製程階段所需的管組與耗材。
+基於 SOP-000022 標準，協助使用者規劃各製程階段所需的管組與耗材。內建資料依據 **SOP-000022 v9.0** 核對。
 
 - **製程階段管理**：自定義生產階段 (如 Production Medium, Harvest 等)。
 - **智慧庫存判斷**：自動識別所選管組是否為庫存品 (Stock) 或需自行組裝 (Custom Assembly)。
@@ -20,6 +20,7 @@
 - **報表生成**：
   - **Picking List (總領料單)**：自動彙總所有階段所需的總管材長度與接頭數量。
   - **Assembly Guide (裝配工單)**：針對非庫存品生成詳細的組裝指引與圖示。
+  - **附件 2 Part A (Assembled Amount)**：依 SOP-000022 附件 2 的 Number 跨製程階段加總組裝套數，可勾選要納入的階段；變體 (132/142/212) 併入原編號 (13/14/21) 並列出明細。
 
 ### 🌡️ 2. 滅菌鍋計算 (Autoclave Calculator)
 
@@ -34,6 +35,7 @@
   - **最佳解 (Optimal)** — 已窮舉所有 Pattern 組合，在目前的裝填規則下無更短排程
   - **近似解 (Heuristic)** — 品項過多或搜尋預算用盡，僅提供貪婪解
   - **不完整 (Incomplete)** — 有品項未能排入，請見下方警示
+- **附件 2 Part B (Sterilization Records)**：每鍋排程卡片標示管組編號 (No.)，並產生可複製的 `13 (2) / 21 (1)` 字串與套數；排程下方提供完整 Part B 表可下載。Load # 為排程順序，Cycle No.、Expiry Date、簽名欄位留空供現場填寫。
 - **未排程項目一律回報**，分為兩類：
   - **Unassignable**：沒有任何 Pattern 的 Zone 允許此品項。
   - **Not Scheduled**：超出 100 循環上限，未排入任何批次。
@@ -49,6 +51,7 @@
 
 - **設定檔管理**：支援 JSON 格式的完整設定匯出與匯入 (Export/Import)。匯入前會先做結構驗證，格式不符時**不會套用任何資料**，並在畫面上列出具體錯誤。
 - **自動存檔**：變更後 1 秒自動寫入瀏覽器 localStorage（key：`BIOPHARMA_AUTOSAVE`）。若存檔毀損或格式不符，原始內容會被備份到 `BIOPHARMA_AUTOSAVE_CORRUPT_<timestamp>` 並於畫面提示，不會被靜默覆蓋。
+- **資料依據 (Data Basis)**：記錄 SOP 資料（Components / Catalog / 示意圖 / BOM）核對所依據的文件與版本，並印在每份報表的來源區塊。資料在記錄後被修改時，報表會標示「記錄後資料已修改」。SOP 進版時，於 Database 分頁更新資料後記錄新版本即可。
 - **資料庫編輯器**：內建 GUI 介面，可新增／修改／刪除元件庫 (Components) 與目錄 (Catalog)，並編輯裝配圖 (Diagrams)、BOM 與滅菌模式 (Patterns)。刪除前會檢查是否仍被 BOM 或 Assignment 引用，被引用時拒絕刪除。
 - **錯誤處理**：渲染錯誤由 React Error Boundary 接住並顯示錯誤內容與復原選項，不會變成空白畫面；其餘錯誤由頁面內橫幅呈現。全程不使用 `alert()`。
 
@@ -82,6 +85,8 @@ src/
   lib/scheduler.js          simulateLoad / runGreedySimulation / calculateSchedule
   lib/reports.js            領料單、裝配工單與滅菌排程表的 HTML 產生器
   lib/config.js             APP_VERSION、存檔 key、validateConfig
+  lib/dataBasis.js          資料依據指紋與報表標示
+  lib/forms.js              SOP-000022 附件 2 Part A / Part B 的編號對應與彙總
   lib/format.js             時間戳格式化（報表來源區塊與匯出檔名共用）
   lib/types.js              JSDoc typedef（核心資料形狀，無執行期程式碼）
   lib/download.js           檔案下載
@@ -142,17 +147,19 @@ CI（GitHub Actions，`.github/workflows/check.yml`）在每次 push / PR 執行
    - 建立製程階段。
    - 選擇 SOP 管組編號並輸入數量（數量必須是大於 0 的整數，否則 Add 按鈕會停用）。
    - 系統會提示該項目是否為庫存品。
-3. **📋 Picking List / 📦 Assembly Guide**
-   - 查看並下載領料單與組裝工單。
+3. **📋 Picking List / 📦 Assembly Guide / 📝 附件 2 Part A**
+   - 查看並下載領料單、組裝工單與附件 2 Part A；Part A 可勾選要納入的製程階段。
    - 每份報表的標題下方均附有來源區塊：產生時間、工具版本、資料來源，以及「非受控文件」聲明。
 4. **🌡️ Autoclave Calc**
    - 系統會自動帶入 Plan 分頁中需要組裝的管組。
    - 若有額外器具 (如鑷子、濾器)，可在左側手動加入。
    - 系統即時計算並顯示滅菌排程建議。
    - **請務必檢查是否出現 Unassignable 或 Not Scheduled 區塊** — 這些品項不在排程中。
+   - 每鍋卡片底部的「附件 2 Part B」字串可直接複製填入；完整 Part B 表在排程下方。
 5. **⚙️ Database**
    - 新增／編輯／刪除元件庫與目錄項目，並編輯裝配圖與 BOM。
    - 變更需按各區塊的 **Save Changes** 才會套用；結果會以區塊內的訊息列回報。
+   - 依 SOP 核對完成後，於最上方 **Data Basis** 區塊輸入依據文件與版本（例：`SOP-000022 v9.0`）並記錄。
 6. **保存**：點擊左側 Sidebar 的 Export 下載 JSON 檔以保存當前進度。
 
 ---
@@ -167,6 +174,8 @@ CI（GitHub Actions，`.github/workflows/check.yml`）在每次 push / PR 執行
 
 - 本工具完全運行於客戶端瀏覽器，不發出任何外部請求，也不會上傳任何數據。
 - 產生的 Picking List 與 Assembly Guide 是工具自動產生的參考文件，**非受控文件**；正式生產請依所屬品質系統的受控文件作業。
+- No.21 Pump Tubing Set 620 的兩種組裝方式分別為 No.21（末端 W, Mini TC）與 No.212（兩端 Empty End）。
+- v30.14 以前的自動存檔沒有資料依據，載入後顯示「未記錄」，請核對後於 Database 分頁記錄。
 - 預設資料中的 `1” Braided Silicone Tubing Set` 未被任何滅菌 Pattern 的 Zone 收錄，計算時會被列為 Unassignable。若需納入排程，請於 Database 分頁將其加入對應 Zone 的允許清單。
 
 ### 共用工作站的存檔行為

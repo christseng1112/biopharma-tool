@@ -90,11 +90,21 @@
  */
 
 /**
+ * One zone load within a cycle.
+ * @typedef {object} LoadedEntry
+ * @property {string} zone
+ * @property {string} item  Normalized item name.
+ * @property {number} qty
+ */
+
+/**
  * One scheduled autoclave run.
  * @typedef {object} ScheduleCycle
  * @property {Partial<Pattern>} pattern  Report generation tolerates a pattern
  *                                       still being edited, so fields may be absent.
  * @property {string[]} loadedItems  Human-readable lines: "[Zone] 2x Item".
+ * @property {LoadedEntry[]} [loadedEntries]  The same loads as structured data,
+ *                                       one per entry of loadedItems, same order.
  * @property {number} [cycleNumber]  Assigned by calculateSchedule, 1-based.
  */
 

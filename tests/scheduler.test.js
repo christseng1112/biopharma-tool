@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { simulateLoad, runGreedySimulation, calculateSchedule, MAX_CYCLES, QUALITY } from '../src/lib/scheduler.js';
 import { normalizePatterns, normalizeName } from '../src/lib/normalize.js';
-import { DEFAULT_AUTOCLAVE_PATTERNS_DATA, DEFAULT_CATALOG, DEFAULT_AUTOCLAVE_GROUP_B } from '../src/data/defaults.js';
+import {
+    DEFAULT_AUTOCLAVE_PATTERNS_DATA, DEFAULT_CATALOG, DEFAULT_AUTOCLAVE_GROUP_B,
+    DEFAULT_BOM, DEFAULT_DIAGRAMS, DEFAULT_COMPONENTS
+} from '../src/data/defaults.js';
 
 const pattern = (zones, id = 1) => ({ id, name: `P${id}`, program: 'P01', zones });
 const total = (items) => items.reduce((s, i) => s + i.qty, 0);
@@ -204,10 +207,57 @@ describe('default dataset', () => {
         expect(unassignable.map(u => u.item)).toEqual(['1"Braided Silicone Tubing Set']);
     });
 
+    // Every catalog entry needs a BOM and a diagram or it drops out of the
+    // assembly guide; every BOM code needs a component record or the picking
+    // list prints "Unknown". Guards transcription of SOP-000022 revisions.
+    it('gives every catalog entry a non-empty BOM and a diagram', () => {
+        Object.keys(DEFAULT_CATALOG).forEach(k => {
+            expect(DEFAULT_BOM[k], `BOM for No. ${k}`).toBeDefined();
+            expect(DEFAULT_BOM[k].length, `BOM rows for No. ${k}`).toBeGreaterThan(0);
+            expect(DEFAULT_DIAGRAMS[k], `diagram for No. ${k}`).toBeTruthy();
+        });
+    });
+
+    it('uses only component codes that exist', () => {
+        Object.entries(DEFAULT_BOM).forEach(([k, rows]) => {
+            rows.forEach(r => expect(DEFAULT_COMPONENTS[r.Code], `No. ${k} code ${r.Code}`).toBeDefined());
+        });
+    });
+
+    it('schedules the No.212 variant in the same zones as No.21 (SOP-000022 No.21, second assembly)', () => {
+        expect(normalizeName(DEFAULT_CATALOG[212].Name)).toBe(normalizeName(DEFAULT_CATALOG[21].Name));
+        expect(DEFAULT_BOM[212]).toEqual([{ Code: 'B0069', Len: 200, Count: 1 }]);
+        const r = calculateSchedule([{ item: normalizeName(DEFAULT_CATALOG[212].Name), qty: 1 }], patterns);
+        expect(r.unassignable).toEqual([]);
+        expect(r.unscheduled).toEqual([]);
+    });
+
     it('schedules one of every Group B item without leaving anything unscheduled', () => {
         const inventory = [...new Set(DEFAULT_AUTOCLAVE_GROUP_B.map(normalizeName))].map(item => ({ item, qty: 1 }));
         const r = calculateSchedule(inventory, patterns);
         expect(r.unscheduled).toEqual([]);
+    });
+});
+
+describe('structured load entries', () => {
+    const entriesMatchStrings = (cycle) => {
+        expect(cycle.loadedEntries.map(e => `[${e.zone}] ${e.qty}x ${e.item}`)).toEqual(cycle.loadedItems);
+    };
+
+    it('mirror the display strings on the greedy path', () => {
+        // 60 items skips the backtracking search, so this is the greedy schedule.
+        const r = calculateSchedule([{ item: 'W', qty: 60 }], [pattern([{ name: 'Z', capacity: 7, allowed: ['W'] }])]);
+        expect(r.quality).toBe(QUALITY.HEURISTIC);
+        r.schedule.forEach(entriesMatchStrings);
+    });
+
+    it('mirror the display strings on the backtracking path', () => {
+        const r = calculateSchedule(
+            [{ item: 'W', qty: 3 }, { item: 'V', qty: 2 }],
+            [pattern([{ name: 'Z', capacity: 2, allowed: ['W', 'V'] }]), pattern([{ name: 'Y', capacity: 3, allowed: ['W'] }], 2)]
+        );
+        expect(r.quality).toBe(QUALITY.OPTIMAL);
+        r.schedule.forEach(entriesMatchStrings);
     });
 });
 

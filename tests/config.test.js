@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { validateConfig, APP_VERSION } from '../src/lib/config.js';
 import { normalizePatterns, reindexByNumber, normalizeName } from '../src/lib/normalize.js';
 import { calculateSchedule } from '../src/lib/scheduler.js';
+import { defaultDataBasis } from '../src/lib/dataBasis.js';
 import {
     DEFAULT_COMPONENTS, DEFAULT_CATALOG, DEFAULT_DIAGRAMS, DEFAULT_BOM,
     DEFAULT_STAGES, DEFAULT_AUTOCLAVE_GROUP_B, DEFAULT_AUTOCLAVE_PATTERNS_DATA
@@ -9,6 +10,9 @@ import {
 
 const defaultPayload = () => ({
     version: APP_VERSION,
+    data_basis: defaultDataBasis({
+        components: DEFAULT_COMPONENTS, catalog: DEFAULT_CATALOG, diagrams: DEFAULT_DIAGRAMS, bom: DEFAULT_BOM
+    }),
     assignments: [],
     stage_list: DEFAULT_STAGES,
     database: {
@@ -180,5 +184,34 @@ describe('validateConfig — zone rules', () => {
 
     it('still accepts the shipped default patterns', () => {
         expect(validateConfig(defaultPayload()).errors).toEqual([]);
+    });
+});
+
+describe('validateConfig — data_basis', () => {
+    const rejects = (data, match) => {
+        const r = validateConfig(data);
+        expect(r.ok).toBe(false);
+        expect(r.errors.join(' ')).toMatch(match);
+    };
+
+    it('accepts a config written before data_basis existed', () => {
+        expect(validateConfig({ assignments: [] }).errors).toEqual([]);
+    });
+    it('accepts an explicit null (not recorded)', () => {
+        expect(validateConfig({ data_basis: null }).errors).toEqual([]);
+    });
+    it('accepts a well-formed basis', () => {
+        expect(validateConfig({ data_basis: { reference: 'SOP-000022 v9.0', fingerprint: 'abcd1234' } }).errors).toEqual([]);
+    });
+    it('a basis that is not an object', () => rejects({ data_basis: 'SOP-000022 v9.0' }, /data_basis 必須是物件/));
+    it('a basis without a reference', () => rejects({ data_basis: { fingerprint: 'abcd1234' } }, /data_basis\.reference/));
+    it('a blank reference', () => rejects({ data_basis: { reference: '  ', fingerprint: 'abcd1234' } }, /data_basis\.reference/));
+    it('a non-string fingerprint', () => rejects({ data_basis: { reference: 'X', fingerprint: 1 } }, /data_basis\.fingerprint/));
+
+    it('survives an export → import round trip', () => {
+        const payload = defaultPayload();
+        const round = JSON.parse(JSON.stringify(payload));
+        expect(validateConfig(round).ok).toBe(true);
+        expect(round.data_basis).toEqual(payload.data_basis);
     });
 });

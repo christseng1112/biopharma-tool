@@ -183,7 +183,7 @@ scenario('Schedule shows a scoped quality badge and downloads with provenance', 
     try {
         const [dl] = await Promise.all([
             page.waitForEvent('download'),
-            page.getByRole('button', { name: /Download/ }).click()
+            page.getByRole('button', { name: 'Download', exact: true }).click()
         ]);
         const path = join(dir, 'schedule.html');
         await dl.saveAs(path);
@@ -245,7 +245,7 @@ scenario('Typing in the pattern editor stays responsive and never shows a stale 
     // recalculating badge is up and Download is disabled, or neither is true.
     const settled = async () => {
         const recalculating = await page.locator('text=計算中 (recalculating)').count() > 0;
-        const dl = page.getByRole('button', { name: /Download/ });
+        const dl = page.getByRole('button', { name: 'Download', exact: true });
         const disabled = await dl.count() > 0 ? await dl.isDisabled() : null;
         return { recalculating, disabled };
     };
@@ -295,6 +295,82 @@ scenario('Quarantined autosave backups are capped at three', async ({ page }) =>
     ok('the newest corrupt payload is among them',
         (await Promise.all(backups.map(k => page.evaluate(x => localStorage.getItem(x), k))))
             .some(v => /not json 4/.test(v || '')));
+});
+
+// ------------------------------------------------- SOP-000022 traceability ---
+
+/** Planner: pick stage by index and SOP No., then add. */
+const addPlanned = async (page, stageIdx, sopNo, qty) => {
+    const selects = page.locator('select');
+    await selects.nth(1).selectOption({ index: stageIdx });
+    await selects.nth(2).selectOption(String(sopNo));
+    await addAssignment(page, qty);
+};
+
+scenario('Reports name the SOP revision and flag data edited after it was recorded', async ({ page }) => {
+    await page.getByRole('button', { name: /Assembly Guide/ }).click();
+    ok('built-in data names SOP-000022 v9.0', /資料依據\s*SOP-000022 v9\.0/.test(await page.textContent('.report-container')));
+
+    await page.getByRole('button', { name: /Database/ }).click();
+    const stock = page.locator('table').filter({ hasText: 'Stock Code' }).locator('tbody tr').first().locator('input').nth(1);
+    await stock.fill('B9999');
+    await page.getByRole('button', { name: 'Save Changes' }).nth(1).click();
+    ok('edit flags the basis as modified', /modified since recorded/.test(await page.getByText('目前狀態').innerText()));
+
+    await page.getByPlaceholder('e.g. SOP-000022 v9.0').fill('SOP-000022 v9.0 (site)');
+    await page.getByRole('button', { name: '記錄為目前資料的依據' }).click();
+    await page.waitForTimeout(AUTOSAVE_FLUSH_MS);
+    await page.reload();
+    await page.waitForSelector('#root h1');
+    await page.getByRole('button', { name: /Database/ }).click();
+    ok('re-recorded basis survives a reload', (await page.getByText('目前狀態').innerText()).trim() === '目前狀態：SOP-000022 v9.0 (site)');
+
+    const saved = await readAutosave(page);
+    delete saved.data_basis;
+    await page.evaluate(s => localStorage.setItem('BIOPHARMA_AUTOSAVE', s), JSON.stringify(saved));
+    await page.reload();
+    await page.waitForSelector('#root h1');
+    await page.getByRole('button', { name: /Database/ }).click();
+    ok('a save without data_basis reads as not recorded', /not recorded/.test(await page.getByText('目前狀態').innerText()));
+});
+
+scenario('Attachment 2 Part A sums per form number across stages; Part B lists each load', async ({ page }) => {
+    await addPlanned(page, 0, 13, 2);
+    await addPlanned(page, 3, 132, 1);   // variant of 13
+    await addPlanned(page, 3, 21, 1);
+    await addPlanned(page, 0, 212, 3);   // variant of 21
+    await addPlanned(page, 3, 15, 2);    // stock set: picked, not assembled
+
+    await page.getByRole('button', { name: /附件 2 Part A/ }).click();
+    const rowsAll = (await page.locator('.custom-table tbody tr').allInnerTexts()).map(r => r.replace(/\s+/g, ' '));
+    ok('13 totals 3 and 21 totals 4, stock excluded',
+        rowsAll.length === 3 && /^13 .* 3 /.test(rowsAll[0]) && /^21 .* 4 /.test(rowsAll[1]) && /Total 7/.test(rowsAll[2]),
+        JSON.stringify(rowsAll));
+    await page.getByLabel('Production Medium').uncheck();
+    const rowsHarvest = (await page.locator('.custom-table tbody tr').allInnerTexts()).map(r => r.replace(/\s+/g, ' '));
+    ok('unticking a stage removes its amounts', /Total 2/.test(rowsHarvest.at(-1) || ''), JSON.stringify(rowsHarvest));
+
+    await page.getByRole('button', { name: /Autoclave Calc/ }).click();
+    await page.waitForTimeout(800);
+    const lines = (await page.locator('text=附件 2 Part B:').locator('..').allInnerTexts()).map(r => r.replace(/\s+/g, ' '));
+    const sets = lines.map(l => [...l.matchAll(/(\d+) \((\d+)\)/g)]).flat().reduce((n, m) => n + Number(m[2]), 0);
+    ok('every planned tubing set appears on a Part B line', sets === 7, JSON.stringify(lines));
+    ok('Part B lines use form numbers only', lines.every(l => !/\b(132|212)\b/.test(l)), JSON.stringify(lines));
+
+    const dir = mkdtempSync(join(tmpdir(), 'e2e-dl-'));
+    try {
+        const [dl] = await Promise.all([
+            page.waitForEvent('download'),
+            page.getByRole('button', { name: /Download Part B/ }).click()
+        ]);
+        const path = join(dir, 'partB.html');
+        await dl.saveAs(path);
+        const html = readFileSync(path, 'utf8');
+        ok('Part B download carries provenance and blank form columns',
+            /UNCONTROLLED DOCUMENT/.test(html) && /form-blank/.test(html) && /SOP-000022 v9\.0/.test(html));
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
 });
 
 // ------------------------------------------------------------------ runner ---
