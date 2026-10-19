@@ -5,6 +5,7 @@ import { calculateSchedule, MAX_CYCLES, QUALITY } from '../lib/scheduler.js';
 import { buildFormNumberIndex, cycleTubingSummary } from '../lib/forms.js';
 import { generateScheduleHTML, generateAttachment2PartBHTML, QUALITY_LABELS } from '../lib/reports.js';
 import { downloadHtml, printHtml } from '../lib/download.js';
+import { ReportPanel } from './ReportPanel.jsx';
 import { Notice, useNotice } from './Notice.jsx';
 
 /** "No. 13" tag shown before a tubing set so it can be matched to the SOP-000022 forms. */
@@ -271,14 +272,9 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
                 </div>
                 {hasTubingInSchedule && (
                     <div className={`bg-white p-6 rounded-lg shadow-sm border transition-opacity ${isRecalculating ? 'opacity-40' : ''}`}>
-                        <div dangerouslySetInnerHTML={{ __html: partBHTML() }} />
-                        <div className="mt-4 text-right">
-                            {/* Regenerated on click so the download carries its own generation time.
-                                Disabled while recalculating, like the schedule download, so the
-                                file can never disagree with the schedule it was taken from. */}
-                            <button className="st-btn mr-2 disabled:opacity-40 disabled:cursor-not-allowed" disabled={isRecalculating} onClick={() => { if (!isRecalculating) printHtml(partBHTML()); }}>🖨️ Print Part B</button>
-                            <button className="st-btn disabled:opacity-40 disabled:cursor-not-allowed" disabled={isRecalculating} onClick={() => { if (!isRecalculating) downloadHtml(partBHTML(), "SOP-000022_Attachment2_PartB.html"); }}>📥 Download Part B</button>
-                        </div>
+                        {/* Disabled while recalculating, like the schedule download, so a printed
+                            or downloaded Part B can never disagree with the schedule shown. */}
+                        <ReportPanel render={partBHTML} filename="SOP-000022_Attachment2_PartB.html" disabled={isRecalculating} labelSuffix=" Part B" />
                     </div>
                 )}
                 <div className="bg-gray-50 p-4 rounded border">
