@@ -215,3 +215,24 @@ describe('validateConfig — data_basis', () => {
         expect(round.data_basis).toEqual(payload.data_basis);
     });
 });
+
+describe('validateConfig — v30.16 fields', () => {
+    const rejects = (data, match) => {
+        const r = validateConfig(data);
+        expect(r.ok).toBe(false);
+        expect(r.errors.join(' ')).toMatch(match);
+    };
+
+    it('accepts a pattern_basis, a batch number and include_stock', () => {
+        expect(validateConfig({
+            pattern_basis: { reference: 'SOP-000077 v11.0', fingerprint: 'abcd1234' },
+            batch_no: 'B-2026-001',
+            database: { autoclave: { include_stock: true } }
+        }).errors).toEqual([]);
+        expect(validateConfig({ pattern_basis: null, batch_no: '' }).errors).toEqual([]);
+    });
+    it('a pattern_basis that is not an object', () => rejects({ pattern_basis: 'v11' }, /pattern_basis 必須是物件/));
+    it('a pattern_basis without a reference', () => rejects({ pattern_basis: { fingerprint: 'x' } }, /pattern_basis\.reference/));
+    it('a non-string batch number', () => rejects({ batch_no: 42 }, /batch_no/));
+    it('a non-boolean include_stock', () => rejects({ database: { autoclave: { include_stock: 'yes' } } }, /include_stock/));
+});

@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
     canonicalJson, sopDataFingerprint, makeDataBasis, defaultDataBasis,
-    describeDataBasis, NOT_RECORDED_LABEL
+    describeDataBasis, NOT_RECORDED_LABEL, patternsFingerprint, defaultPatternBasis
 } from '../src/lib/dataBasis.js';
-import { reindexByNumber } from '../src/lib/normalize.js';
+import { reindexByNumber, normalizePatterns } from '../src/lib/normalize.js';
 import {
-    DEFAULT_COMPONENTS, DEFAULT_CATALOG, DEFAULT_DIAGRAMS, DEFAULT_BOM, DEFAULT_DATA_BASIS_REFERENCE
+    DEFAULT_COMPONENTS, DEFAULT_CATALOG, DEFAULT_DIAGRAMS, DEFAULT_BOM, DEFAULT_DATA_BASIS_REFERENCE,
+    DEFAULT_AUTOCLAVE_PATTERNS_DATA, DEFAULT_PATTERN_BASIS_REFERENCE
 } from '../src/data/defaults.js';
 
 const defaults = () => ({
@@ -75,5 +76,30 @@ describe('describeDataBasis', () => {
 
     it('trims the recorded reference', () => {
         expect(makeDataBasis('  SOP-000022 v10.0 ', defaults()).reference).toBe('SOP-000022 v10.0');
+    });
+});
+
+describe('patternsFingerprint', () => {
+    // The app holds normalized patterns, saves them through JSON, and
+    // normalizes again on load. None of that may read as an edit.
+    it('is the same for raw defaults, normalized state and a JSON round trip', () => {
+        const normalized = normalizePatterns(DEFAULT_AUTOCLAVE_PATTERNS_DATA);
+        const round = JSON.parse(JSON.stringify(normalized));
+        const fp = patternsFingerprint(DEFAULT_AUTOCLAVE_PATTERNS_DATA);
+        expect(patternsFingerprint(normalized)).toBe(fp);
+        expect(patternsFingerprint(round)).toBe(fp);
+        expect(patternsFingerprint(normalizePatterns(round))).toBe(fp);
+    });
+
+    it('changes when a zone capacity changes', () => {
+        const edited = normalizePatterns(DEFAULT_AUTOCLAVE_PATTERNS_DATA);
+        edited[0].zones[0] = { ...edited[0].zones[0], capacity: edited[0].zones[0].capacity + 1 };
+        expect(patternsFingerprint(edited)).not.toBe(patternsFingerprint(DEFAULT_AUTOCLAVE_PATTERNS_DATA));
+    });
+
+    it('defaults to SOP-000077 v11.0 for the shipped patterns', () => {
+        const basis = defaultPatternBasis();
+        expect(basis.reference).toBe(DEFAULT_PATTERN_BASIS_REFERENCE);
+        expect(describeDataBasis(basis, patternsFingerprint(normalizePatterns(DEFAULT_AUTOCLAVE_PATTERNS_DATA)))).toBe('SOP-000077 v11.0');
     });
 });

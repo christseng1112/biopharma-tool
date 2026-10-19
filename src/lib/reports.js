@@ -8,6 +8,7 @@ import { formatTimestamp } from './format.js';
 /** @typedef {import('./types.js').CatalogEntry} CatalogEntry */
 /** @typedef {import('./types.js').Component} Component */
 /** @typedef {import('./types.js').ScheduleResult} ScheduleResult */
+/** @typedef {import('./types.js').ReportProvenance} ReportProvenance */
 
 
 /**
@@ -45,6 +46,19 @@ export const CSS_STRING = `
 .warn-block h3 { margin: 0 0 6px; font-size: 14px; }
 .warn-block ul { margin: 0; padding-left: 20px; }
 .done-col { width: 8%; }
+.batch-blank { display: inline-block; min-width: 160px; border-bottom: 1px solid #333; }
+/* Printed reports are filed with the batch record: A4, table headers repeated
+   on every page, and no table row or cycle heading split across a page break. */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body { margin: 0; }
+  .report-container { padding: 0; }
+  thead { display: table-header-group; }
+  tr, .provenance, .warn-block { break-inside: avoid; page-break-inside: avoid; }
+  .stage-header, .cycle-header, .picking-title { break-after: avoid; page-break-after: avoid; }
+  .custom-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .no-print { display: none !important; }
+}
 </style>
 `;
 
@@ -56,26 +70,35 @@ export const CSS_STRING = `
  *
  * `sourceLabel` identifies the dataset: the imported filename, or a marker for
  * the built-in defaults. `dataBasisLabel` names the controlled document the
- * data was checked against. `generatedAt` is injectable so output is reproducible
- * under test.
- * @param {{title?: string, sourceLabel?: string|null, dataBasisLabel?: string, generatedAt?: Date, appVersion?: string}} [opts]
+ * SOP data was checked against, `patternBasisLabel` the one the autoclave
+ * loading patterns were (only the autoclave reports pass it). `batchNo` ties
+ * the sheet to its batch record; left blank it prints a line to write on.
+ * `generatedAt` is injectable so output is reproducible under test.
+ * @param {{title?: string} & ReportProvenance & {appVersion?: string}} [opts]
  * @returns {string} HTML fragment
  */
-export function provenanceHTML({ title, sourceLabel, dataBasisLabel, generatedAt = new Date(), appVersion = APP_VERSION } = {}) {
+export function provenanceHTML({ title, sourceLabel, dataBasisLabel, patternBasisLabel, batchNo, generatedAt = new Date(), appVersion = APP_VERSION } = {}) {
     const formatted = formatTimestamp(generatedAt);
 
     // The document name is already the report's <h1>; repeating it here would
     // just be noise on a printed sheet.
     const rows = [
+        ['Batch No. / 批號', null],
         ['Generated / 產生時間', formatted],
         ['Tool version / 工具版本', `v${appVersion}`],
         ['Data source / 資料來源', sourceLabel || '(built-in defaults / 內建預設值)']
     ];
     // Which SOP revision the data was checked against (see lib/dataBasis.js).
     if (dataBasisLabel) rows.push(['Data basis / 資料依據', dataBasisLabel]);
+    if (patternBasisLabel) rows.push(['Pattern basis / 滅菌 Pattern 依據', patternBasisLabel]);
+
+    const batch = String(batchNo ?? '').trim();
+    const cell = (v) => (v === null
+        ? (batch ? `<b>${escapeHtml(batch)}</b>` : '<span class="batch-blank">&nbsp;</span>')
+        : escapeHtml(v));
 
     return '<div class="provenance"><table>'
-        + rows.map(([k, v]) => `<tr><td class="k">${escapeHtml(k)}</td><td>${escapeHtml(v)}</td></tr>`).join("")
+        + rows.map(([k, v]) => `<tr><td class="k">${escapeHtml(k)}</td><td>${cell(v)}</td></tr>`).join("")
         + '</table>'
         + '<div class="uncontrolled">⚠️ 本文件由工具自動產生，為非受控文件 (UNCONTROLLED DOCUMENT). '
         + '正式生產請依所屬品質系統之受控文件作業。</div>'
@@ -88,7 +111,7 @@ export function provenanceHTML({ title, sourceLabel, dataBasisLabel, generatedAt
  * @param {Record<number, BomPart[]>} customBomMap
  * @param {Record<string, Component>} componentsDb
  * @param {Record<number, string>} diagramsDb
- * @param {{sourceLabel?: string|null, dataBasisLabel?: string, generatedAt?: Date}} [provenance]
+ * @param {ReportProvenance} [provenance]
  * @returns {string} HTML fragment
  */
 export function generateAssemblyGuideHTML(stageList, tasks, customBomMap, componentsDb, diagramsDb, provenance = {}) {
@@ -159,7 +182,7 @@ export function generateAssemblyGuideHTML(stageList, tasks, customBomMap, compon
  * @param {Record<number, BomPart[]>} customBomMap
  * @param {Record<string, Component>} componentsDb
  * @param {Record<number, CatalogEntry>} catalogDb
- * @param {{sourceLabel?: string|null, dataBasisLabel?: string, generatedAt?: Date}} [provenance]
+ * @param {ReportProvenance} [provenance]
  * @returns {string} HTML fragment
  */
 export function generatePickingListHTML(tasks, customBomMap, componentsDb, catalogDb, provenance = {}) {
@@ -356,7 +379,7 @@ export const QUALITY_LABELS = {
  * printed schedule that omits what was NOT scheduled invites exactly the
  * silent-omission failure the rest of this tool guards against.
  * @param {Partial<ScheduleResult> & {totalItems?: number}} result
- * @param {{sourceLabel?: string|null, dataBasisLabel?: string, generatedAt?: Date}} [provenance]
+ * @param {ReportProvenance} [provenance]
  * @returns {string} HTML fragment
  */
 export function generateScheduleHTML({ schedule = [], unassignable = [], unscheduled = [], quality, totalItems = 0 } = {}, provenance = {}) {

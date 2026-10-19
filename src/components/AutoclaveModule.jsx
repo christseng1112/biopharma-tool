@@ -4,7 +4,7 @@ import { normalizeName } from '../lib/normalize.js';
 import { calculateSchedule, MAX_CYCLES, QUALITY } from '../lib/scheduler.js';
 import { buildFormNumberIndex, cycleTubingSummary } from '../lib/forms.js';
 import { generateScheduleHTML, generateAttachment2PartBHTML, QUALITY_LABELS } from '../lib/reports.js';
-import { downloadHtml } from '../lib/download.js';
+import { downloadHtml, printHtml } from '../lib/download.js';
 import { Notice, useNotice } from './Notice.jsx';
 
 /** "No. 13" tag shown before a tubing set so it can be matched to the SOP-000022 forms. */
@@ -12,11 +12,10 @@ const FormNoTag = ({ no }) => (
     <span className="text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 px-1 rounded mr-1 whitespace-nowrap">No. {no}</span>
 );
 
-export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, setPatternsList, inventoryB, setInventoryB, manualCart, setManualCart, dataSource, dataBasisLabel }) => {
+export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, setPatternsList, inventoryB, setInventoryB, manualCart, setManualCart, provenance, includeStock, setIncludeStock, onRestoreDefaultPatterns }) => {
     const [selectedItem, setSelectedItem] = useState("");
     const [quantity, setQuantity] = useState(1);
     const [expandedPatternId, setExpandedPatternId] = useState(null);
-    const [includeStock, setIncludeStock] = useState(false);
     const [notice, showNotice] = useNotice();
     // Maps a (normalized) item name back to its SOP-000022 form Number, folding
     // variants such as 132 into 13. Group B equipment has no entry.
@@ -76,7 +75,7 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
     // Wording comes from QUALITY_LABELS so the on-screen badge and the printed
     // report can never say different things about the same result.
 
-    const partBHTML = () => generateAttachment2PartBHTML(schedule, formIndex, { provenance: { sourceLabel: dataSource, dataBasisLabel } });
+    const partBHTML = () => generateAttachment2PartBHTML(schedule, formIndex, { provenance });
     const hasTubingInSchedule = schedule.some(c => cycleTubingSummary(c, formIndex).sets.length > 0);
 
     const copyPartBLine = async (text) => {
@@ -96,16 +95,25 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
         [QUALITY.INCOMPLETE]: { ...QUALITY_LABELS[QUALITY.INCOMPLETE], className: 'bg-red-100 text-red-800 border-red-300' }
     }[quality];
 
+    // Regenerated on click so the file carries its own generation time.
+    // Totals come from the deferred cart the schedule was computed from,
+    // so the header cannot contradict the cycles below it.
+    const scheduleHTML = () => generateScheduleHTML(
+        { schedule, unassignable, unscheduled, quality, totalItems: deferredCart.reduce((a, c) => a + c.qty, 0) },
+        provenance
+    );
     const handleDownloadSchedule = () => {
         if (isRecalculating) return;
-        // Regenerated on click so the file carries its own generation time.
-        // Totals come from the deferred cart the schedule was computed from,
-        // so the header cannot contradict the cycles below it.
-        const totalItems = deferredCart.reduce((a, c) => a + c.qty, 0);
-        downloadHtml(
-            generateScheduleHTML({ schedule, unassignable, unscheduled, quality, totalItems }, { sourceLabel: dataSource, dataBasisLabel }),
-            "Sterilization_Schedule.html"
-        );
+        downloadHtml(scheduleHTML(), "Sterilization_Schedule.html");
+    };
+    const handlePrintSchedule = () => {
+        if (isRecalculating) return;
+        printHtml(scheduleHTML());
+    };
+
+    const handleRestoreDefaultPatterns = () => {
+        if (!window.confirm("將 Pattern 與 Group B 清單還原為內建預設值 (SOP-000077 v11.0)？\n規劃、手動清單與 Database 資料不受影響；對 Pattern 的自訂修改會被覆蓋。")) return;
+        onRestoreDefaultPatterns();
     };
 
     // A2: same guard as the planner — a blank field must not become NaN.
@@ -223,7 +231,10 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
                             </span>
                         )}
                         {(schedule.length > 0 || unassignable.length > 0 || unscheduled.length > 0) && (
-                            <button onClick={handleDownloadSchedule} disabled={isRecalculating} className="ml-auto text-xs bg-white border px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1" title={isRecalculating ? "重新計算中，請稍候" : "下載滅菌排程表 (含警示區塊與來源資訊)"}>
+                            <button onClick={handlePrintSchedule} disabled={isRecalculating} className="ml-auto text-xs bg-white border px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed" title={isRecalculating ? "重新計算中，請稍候" : "列印滅菌排程表"}>🖨️ Print</button>
+                        )}
+                        {(schedule.length > 0 || unassignable.length > 0 || unscheduled.length > 0) && (
+                            <button onClick={handleDownloadSchedule} disabled={isRecalculating} className="text-xs bg-white border px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1" title={isRecalculating ? "重新計算中，請稍候" : "下載滅菌排程表 (含警示區塊與來源資訊)"}>
                                 <Icons.Download className="w-3 h-3" /> Download
                             </button>
                         )}
@@ -265,13 +276,17 @@ export const AutoclaveModule = ({ plannerAssignments, dbCatalog, patternsList, s
                             {/* Regenerated on click so the download carries its own generation time.
                                 Disabled while recalculating, like the schedule download, so the
                                 file can never disagree with the schedule it was taken from. */}
+                            <button className="st-btn mr-2 disabled:opacity-40 disabled:cursor-not-allowed" disabled={isRecalculating} onClick={() => { if (!isRecalculating) printHtml(partBHTML()); }}>🖨️ Print Part B</button>
                             <button className="st-btn disabled:opacity-40 disabled:cursor-not-allowed" disabled={isRecalculating} onClick={() => { if (!isRecalculating) downloadHtml(partBHTML(), "SOP-000022_Attachment2_PartB.html"); }}>📥 Download Part B</button>
                         </div>
                     </div>
                 )}
                 <div className="bg-gray-50 p-4 rounded border">
                     <h3 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><Icons.Settings className="w-4 h-4" /> Pattern Configuration</h3>
-                    <button onClick={handleAddPattern} className="text-xs bg-white border px-2 py-1 rounded mb-4 hover:bg-gray-100">+ New Pattern</button>
+                    <div className="flex gap-2 mb-4">
+                        <button onClick={handleAddPattern} className="text-xs bg-white border px-2 py-1 rounded hover:bg-gray-100">+ New Pattern</button>
+                        <button onClick={handleRestoreDefaultPatterns} className="text-xs bg-white border px-2 py-1 rounded hover:bg-gray-100" title="只還原 Pattern 與 Group B 清單，不影響規劃">↺ 還原為預設 Pattern (SOP-000077 v11.0)</button>
+                    </div>
                     <div className="space-y-2 max-h-96 overflow-y-auto custom-scroll pr-2">
                         {patternsList.map(pattern => {
                             const isExpanded = expandedPatternId === pattern.id;

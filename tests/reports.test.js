@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generatePickingListHTML, generateAssemblyGuideHTML, generateScheduleHTML, provenanceHTML, QUALITY_LABELS, generateAttachment2PartAHTML, generateAttachment2PartBHTML } from '../src/lib/reports.js';
+import { generatePickingListHTML, generateAssemblyGuideHTML, generateScheduleHTML, provenanceHTML, QUALITY_LABELS, generateAttachment2PartAHTML, generateAttachment2PartBHTML, CSS_STRING } from '../src/lib/reports.js';
 import { QUALITY } from '../src/lib/scheduler.js';
 import { APP_VERSION } from '../src/lib/config.js';
 
@@ -192,6 +192,25 @@ describe('provenance header', () => {
     it('escapes the data basis label', () => {
         expect(provenanceHTML({ title: 'T', dataBasisLabel: '<script>x</script>', generatedAt: at }))
             .not.toContain('<script>');
+    });
+
+    it('prints the batch number when given one', () => {
+        const html = provenanceHTML({ title: 'T', batchNo: ' B-2026-001 ', generatedAt: at });
+        expect(html).toContain('Batch No. / 批號');
+        expect(html).toContain('<b>B-2026-001</b>');
+    });
+
+    it('prints a blank line for the batch number when there is none', () => {
+        expect(provenanceHTML({ title: 'T', generatedAt: at })).toContain('class="batch-blank"');
+    });
+
+    it('escapes the batch number', () => {
+        expect(provenanceHTML({ title: 'T', batchNo: '<img src=x>', generatedAt: at })).not.toContain('<img');
+    });
+
+    it('records the pattern basis only when given one', () => {
+        expect(provenanceHTML({ title: 'T', patternBasisLabel: 'SOP-000077 v11.0', generatedAt: at })).toContain('滅菌 Pattern 依據');
+        expect(provenanceHTML({ title: 'T', generatedAt: at })).not.toContain('滅菌 Pattern 依據');
     });
 
     it('falls back to now when handed an invalid date', () => {
@@ -423,5 +442,14 @@ describe('generateScheduleHTML', () => {
         const html = generateScheduleHTML({ schedule: [], unassignable: [], unscheduled: [], quality: QUALITY.OPTIMAL, totalItems: 0 }, prov);
         expect(html).toContain('No cycles scheduled');
         expect(html).toContain('UNCONTROLLED DOCUMENT');
+    });
+});
+
+describe('print styles', () => {
+    it('ship with every report: A4, repeated headers, unbroken rows', () => {
+        expect(CSS_STRING).toContain('@media print');
+        expect(CSS_STRING).toMatch(/@page\s*\{\s*size:\s*A4/);
+        expect(CSS_STRING).toContain('thead { display: table-header-group; }');
+        expect(CSS_STRING).toMatch(/tr,[^{]*\{[^}]*break-inside: avoid/);
     });
 });

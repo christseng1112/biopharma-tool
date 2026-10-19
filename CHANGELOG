@@ -5,6 +5,88 @@ version 欄位與本檔案的最新版本應始終一致。
 
 
 ================================================================================
+[v30.16] - 2026-10-19
+================================================================================
+
+📋 SOP-000077 v11.0 核對 (CR-26-083)
+
+依 SOP-000077 v11.0 附件 1 逐表核對 11 個 Loading Pattern。
+
+   問題: 內建 Pattern 有轉錄錯誤，且缺少 v11.0 新增的內容：
+         - P3 B2、P4 B1、P4 B2、P5 B2 放的是 No.19「1” Braided Silicone Tubing
+           connect Pumpskid and Scilog」，SOP（v10.0 起）規定的是 No.26「1”
+           Braided Silicone Tubing Set」。No.26 因此在任何 Pattern 都無位置，
+           長期列為 Unassignable（先前 README 的已知問題即源於此）。
+         - P5 A2 漏列 No.30「3/8” C-Flex-1/2” Silicone Tubing Set」。
+         - P8 的 A2 只占 A2-1 & A2-2，工具標為「A2 (All)」。
+         - 缺少 v11.0 新增的 Pattern 11（Probes / P10，click-in probe sheath）；
+           P9 未標明為 bellows probe sheath。
+         - 同一 Location 列多個品項、各有上限時，各 Zone 的設定互不一致：
+           P8 B1-4 總量只允許 1 件、P7 B2-4 只允許 1 件、P8 B1-3 共用 4 件、
+           P7 A2-4 允許任意混合 6 件。
+   修正: - P3 B2、P4 B1/B2、P5 B2 改為 No.26；No.19 依 SOP 只留在 P3 B1-3 & B1-4。
+         - P5 A2 加入 No.30；P8 Zone 改名「A2-1 & A2-2」（容量 8 不變）。
+         - 新增 Pattern 11 (P10)。DO / pH Probe 拆成 bellows sheath（只進 P9 /
+           P04）與 click-in sheath（只進 P11 / P10）兩類品項，排程不會把探頭
+           送進錯誤的程式。
+         - 多品項 Location 一律解讀為「可同時放，各自不超過上限」（經使用者確認）：
+           P7 A2-4 容量 6（3/4 閥 ≤5、1-1/2 閥 ≤1）；P7 B2-4 容量 2（各 ≤1）；
+           P8 B1-3 容量 10（Pump tubing ≤4、SciPres ≤4、Braided 20 ≤2）；
+           P8 B1-4 容量 28（50cm 管組 ≤1、TC cap ≤10、Hose barb ≤5、
+           Gasket 合計 ≤12）。P6 B1-3 & B1-4 與 P7 B1-3 原本即是此做法，未變更。
+   未變更: P7 A1-1/A1-2（合併數量 2）與 P7 B1-3 的 funnel / lid 組合依合併儲存格
+         解讀，維持原設定。
+
+↺ 還原為預設 Pattern
+
+   問題: 自動存檔帶著自己的 Pattern，內建 Pattern 的修正只有 Reset Defaults 才會
+         生效，而 Reset Defaults 會清掉整份規劃。
+   修正: Pattern Configuration 新增「↺ 還原為預設 Pattern (SOP-000077 v11.0)」，
+         確認後只重設 Pattern 與 Group B 清單，規劃、手動清單與 Database 資料
+         皆保留。
+
+📋 GxP — Pattern 依據追溯 (Pattern Basis)
+
+   比照 v30.14 的資料依據，滅菌 Pattern 另有一份依據 pattern_basis
+   { reference, fingerprint }，預設 SOP-000077 v11.0。滅菌排程表與附件 2 Part B
+   的來源區塊顯示「Pattern basis / 滅菌 Pattern 依據」；Pattern 在記錄後被修改時
+   標示「記錄後資料已修改」。Database 分頁新增 Pattern Basis 區塊供重新記錄。
+   v30.16 以前的存檔沒有此欄位，載入後顯示「未記錄」；按「還原為預設 Pattern」
+   或核對後記錄即可。
+
+🐛 Bug Fix — Include Stock 在切換分頁後被重設
+
+   問題: Include Stock 是滅菌分頁元件內的狀態，離開分頁即被卸載，回來時恢復為
+         未勾選，庫存品因此在不知情下從排程與 Part B 中消失。
+   修正: 狀態移至 App 層並寫入設定檔 (database.autoclave.include_stock)，切換
+         分頁、重新開啟、匯出入皆保留。
+
+✨ 改善 (Improvements)
+
+批號 / 工單號
+   Plan 分頁新增「批號 / 工單號 (Batch No.)」，印在領料單、裝配工單、附件 2
+   Part A / Part B 與滅菌排程表的來源區塊，便於依 SOP-000022 3.2.9 附於 batch
+   record。未填時印空白線供手寫。匯入不含批號的新規劃時會清空，不沿用前一份。
+
+列印
+   每份報表新增 🖨️ Print（以隱藏 iframe 列印，不需開新視窗、離線可用）。報表樣式
+   加入 A4 版面、跨頁重複表頭、表格列與標題不被切斷。滅菌排程表與 Part B 的
+   Print 比照 Download，重新計算期間停用。
+
+Assignment 可改數量
+   Current Assignments 的 Qty 可直接修改，只接受大於 0 的整數；無效輸入以紅框
+   提示，離開欄位時還原為已存的數量。先前只能刪除重加。
+
+🧪 Tests
+- 預設 Pattern 釘選 SOP-000077 v11.0 的各項修正（No.26 位置、No.19 僅一處、
+  多品項 Location 的各自上限、探頭只進對應程式）；「恰有一項 Unassignable」
+  改為「catalog 全部可排程」。
+- 新增 pattern_basis / batch_no / include_stock 驗證、Pattern 指紋穩定性、
+  批號與 Pattern 依據列、列印樣式的單元測試。
+- e2e 新增四個情境：Include Stock 保留、Qty 修改、批號與列印、還原預設 Pattern。
+
+
+================================================================================
 [v30.15] - 2026-10-19
 ================================================================================
 
@@ -469,7 +551,6 @@ verify:offline 在沒有瀏覽器的環境會失敗
 [Planned] 後續規劃
 ================================================================================
 
-- 預設資料中未被任何 Pattern 收錄的品項，需由領域負責人確認應歸屬哪個 Zone。
 - Zone 的 allowed 改以 SOP No. 參照，根治「Catalog 改名即與 Zone 斷鏈」。
   牽涉資料模型變更與既有設定檔遷移，且 Group B 器具（鑷子、剪刀等）不在
   catalog 中、仍須以名稱比對，allowed 會變成 id 與名稱雙軌。應先由製程端決定

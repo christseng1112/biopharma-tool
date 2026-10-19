@@ -3,7 +3,7 @@ import { isPlainObject } from './normalize.js';
 
 
 /** Single source of truth for the version shown in the UI and written to exports. */
-export const APP_VERSION = "30.15";
+export const APP_VERSION = "30.16";
 
 export const AUTOSAVE_KEY = "BIOPHARMA_AUTOSAVE";
 
@@ -31,15 +31,19 @@ export const validateConfig = (data) => {
     if (data.assignments !== undefined && !Array.isArray(data.assignments)) errors.push("assignments 必須是陣列");
     if (data.stage_list !== undefined && !Array.isArray(data.stage_list)) errors.push("stage_list 必須是陣列");
 
-    const basis = data.data_basis;
-    if (basis !== undefined && basis !== null) {
+    // data_basis (SOP-000022 data) and pattern_basis (SOP-000077 patterns)
+    // share one shape; see lib/dataBasis.js.
+    ['data_basis', 'pattern_basis'].forEach(key => {
+        const basis = data[key];
+        if (basis === undefined || basis === null) return;
         if (!isPlainObject(basis)) {
-            errors.push("data_basis 必須是物件 {reference, fingerprint} 或 null");
-        } else {
-            if (typeof basis.reference !== 'string' || basis.reference.trim() === '') errors.push("data_basis.reference 必須是非空字串");
-            if (typeof basis.fingerprint !== 'string') errors.push("data_basis.fingerprint 必須是字串");
+            errors.push(`${key} 必須是物件 {reference, fingerprint} 或 null`);
+            return;
         }
-    }
+        if (typeof basis.reference !== 'string' || basis.reference.trim() === '') errors.push(`${key}.reference 必須是非空字串`);
+        if (typeof basis.fingerprint !== 'string') errors.push(`${key}.fingerprint 必須是字串`);
+    });
+    if (data.batch_no !== undefined && typeof data.batch_no !== 'string') errors.push("batch_no 必須是字串");
 
     const db = data.database;
     if (db !== undefined && !isPlainObject(db)) errors.push("database 必須是物件");
@@ -109,6 +113,7 @@ export const validateConfig = (data) => {
             }
             if (ac.inventory_group_b !== undefined && !Array.isArray(ac.inventory_group_b)) errors.push("database.autoclave.inventory_group_b 必須是陣列");
             if (ac.manual_cart !== undefined && !Array.isArray(ac.manual_cart)) errors.push("database.autoclave.manual_cart 必須是陣列");
+            if (ac.include_stock !== undefined && typeof ac.include_stock !== 'boolean') errors.push("database.autoclave.include_stock 必須是 true 或 false");
         }
     }
 

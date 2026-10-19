@@ -299,6 +299,9 @@ scenario('Quarantined autosave backups are capped at three', async ({ page }) =>
 
 // ------------------------------------------------- SOP-000022 traceability ---
 
+/** The Database tab has one basis editor per controlled document. */
+const sopBasis = (page) => page.locator('[data-basis="sop-data"]');
+
 /** Planner: pick stage by index and SOP No., then add. */
 const addPlanned = async (page, stageIdx, sopNo, qty) => {
     const selects = page.locator('select');
@@ -315,15 +318,15 @@ scenario('Reports name the SOP revision and flag data edited after it was record
     const stock = page.locator('table').filter({ hasText: 'Stock Code' }).locator('tbody tr').first().locator('input').nth(1);
     await stock.fill('B9999');
     await page.getByRole('button', { name: 'Save Changes' }).nth(1).click();
-    ok('edit flags the basis as modified', /modified since recorded/.test(await page.getByText('目前狀態').innerText()));
+    ok('edit flags the basis as modified', /modified since recorded/.test(await sopBasis(page).getByText('目前狀態').innerText()));
 
-    await page.getByPlaceholder('e.g. SOP-000022 v9.0').fill('SOP-000022 v9.0 (site)');
-    await page.getByRole('button', { name: '記錄為目前資料的依據' }).click();
+    await sopBasis(page).getByPlaceholder('e.g. SOP-000022 v9.0').fill('SOP-000022 v9.0 (site)');
+    await sopBasis(page).getByRole('button', { name: '記錄為目前資料的依據' }).click();
     await page.waitForTimeout(AUTOSAVE_FLUSH_MS);
     await page.reload();
     await page.waitForSelector('#root h1');
     await page.getByRole('button', { name: /Database/ }).click();
-    ok('re-recorded basis survives a reload', (await page.getByText('目前狀態').innerText()).trim() === '目前狀態：SOP-000022 v9.0 (site)');
+    ok('re-recorded basis survives a reload', (await sopBasis(page).getByText('目前狀態').innerText()).trim() === '目前狀態：SOP-000022 v9.0 (site)');
 
     const saved = await readAutosave(page);
     delete saved.data_basis;
@@ -331,7 +334,7 @@ scenario('Reports name the SOP revision and flag data edited after it was record
     await page.reload();
     await page.waitForSelector('#root h1');
     await page.getByRole('button', { name: /Database/ }).click();
-    ok('a save without data_basis reads as not recorded', /not recorded/.test(await page.getByText('目前狀態').innerText()));
+    ok('a save without data_basis reads as not recorded', /not recorded/.test(await sopBasis(page).getByText('目前狀態').innerText()));
 });
 
 scenario('Attachment 2 Part A sums per form number across stages; Part B lists each load', async ({ page }) => {
@@ -371,6 +374,95 @@ scenario('Attachment 2 Part A sums per form number across stages; Part B lists e
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
+});
+
+// ------------------------------------------------------- v30.16 additions ---
+
+/** Record the HTML of every report handed to printHtml (its hidden iframe). */
+const capturePrints = (page) => page.evaluate(() => {
+    window.__printed = [];
+    new MutationObserver(muts => muts.forEach(m => m.addedNodes.forEach(n => {
+        if (n.nodeName === 'IFRAME' && n.hasAttribute('data-print-frame')) window.__printed.push(n.srcdoc);
+    }))).observe(document.body, { childList: true });
+});
+
+scenario('Include Stock stays ticked when leaving and returning to the Autoclave tab', async ({ page }) => {
+    await addPlanned(page, 0, 26, 2);   // No.26 has a stock code, so it is planned as stock
+    await page.getByRole('button', { name: /Autoclave Calc/ }).click();
+    await page.getByLabel('Include Stock').check();
+    await page.getByRole('button', { name: /Picking List/ }).click();
+    await page.getByRole('button', { name: /Autoclave Calc/ }).click();
+    ok('box is still ticked', await page.getByLabel('Include Stock').isChecked());
+    await page.waitForTimeout(AUTOSAVE_FLUSH_MS);
+    ok('choice is saved', (await readAutosave(page)).database.autoclave.include_stock === true);
+    ok('stock No.26 is scheduled, not unassignable', !/Unassignable Items/.test(await page.textContent('#root'))
+        && /No\. 26/.test(await page.textContent('#root')));
+});
+
+scenario('An assignment quantity can be edited in place, and only to a positive integer', async ({ page }) => {
+    await addPlanned(page, 0, 2, 1);    // No.2: 100 cm of B0043 per set
+    const cell = page.getByRole('spinbutton', { name: 'Qty', exact: true });
+    await cell.fill('3');
+    await page.getByRole('button', { name: /Picking List/ }).click();
+    ok('picking list follows the new quantity', /300 cm/.test(await page.textContent('.report-container')));
+    await page.getByRole('button', { name: /Plan & Config/ }).click();
+    await cell.fill('0');
+    await cell.blur();
+    ok('an invalid entry snaps back', (await cell.inputValue()) === '3');
+    await page.waitForTimeout(AUTOSAVE_FLUSH_MS);
+    ok('stored quantity is still 3', (await readAutosave(page)).assignments[0].Qty === 3);
+});
+
+scenario('The batch number is printed on reports and Print hands the report to a print frame', async ({ page }) => {
+    await page.getByLabel('批號 / 工單號 (Batch No.)').fill('B-2026-042');
+    await addPlanned(page, 0, 2, 1);
+    await page.getByRole('button', { name: /Picking List/ }).click();
+    ok('batch number shown on the report', /B-2026-042/.test(await page.textContent('.report-container')));
+
+    await capturePrints(page);
+    await page.getByRole('button', { name: /Print/ }).click();
+    await page.waitForTimeout(500);
+    const printed = await page.evaluate(() => window.__printed);
+    ok('print frame received the report', printed.length === 1 && /Picking List/.test(printed[0]) && /B-2026-042/.test(printed[0]));
+    ok('print frame carries the print styles', /@media print/.test(printed[0] || ''));
+
+    await page.getByRole('button', { name: /Autoclave Calc/ }).click();
+    await page.waitForTimeout(800);
+    await page.getByRole('button', { name: 'Print Part B' }).click();
+    await page.waitForTimeout(500);
+    const printedB = await page.evaluate(() => window.__printed);
+    ok('Part B prints with batch number and pattern basis',
+        printedB.length === 2 && /B-2026-042/.test(printedB[1]) && /SOP-000077 v11\.0/.test(printedB[1]));
+});
+
+scenario('Restoring the default patterns fixes an old save without touching the plan', async ({ page, dialog }) => {
+    // An autosave from before v30.16 carries patterns with No.19 where
+    // SOP-000077 puts No.26, so No.26 is unassignable.
+    await addPlanned(page, 0, 26, 1);
+    await page.getByRole('button', { name: /Autoclave Calc/ }).click();
+    await page.getByLabel('Include Stock').check();
+    await page.waitForTimeout(AUTOSAVE_FLUSH_MS);
+    const saved = await readAutosave(page);
+    saved.database.autoclave.patterns.forEach(p => p.zones.forEach(z => {
+        z.allowed = z.allowed.filter(a => !/1"Braided Silicone Tubing Set/.test(a));
+    }));
+    delete saved.pattern_basis;
+    await page.evaluate(s => localStorage.setItem('BIOPHARMA_AUTOSAVE', s), JSON.stringify(saved));
+    await page.reload();
+    await page.waitForSelector('#root h1');
+    await page.getByRole('button', { name: /Autoclave Calc/ }).click();
+    await page.waitForTimeout(800);
+    ok('old patterns leave No.26 unassignable', /Unassignable Items/.test(await page.textContent('#root')));
+
+    dialog.action = 'accept';
+    await page.getByRole('button', { name: /還原為預設 Pattern/ }).click();
+    await page.waitForTimeout(800);
+    ok('restore asked for confirmation', dialog.messages.some(m => /SOP-000077 v11\.0/.test(m)));
+    ok('No.26 is scheduled after restore', !/Unassignable Items/.test(await page.textContent('#root')));
+    await page.waitForTimeout(AUTOSAVE_FLUSH_MS);
+    const after = await readAutosave(page);
+    ok('the plan is untouched', after.assignments.length === 1 && after.assignments[0]['SOP No.'] === 26);
+    ok('pattern basis is back to SOP-000077 v11.0', after.pattern_basis?.reference === 'SOP-000077 v11.0');
 });
 
 // ------------------------------------------------------------------ runner ---
