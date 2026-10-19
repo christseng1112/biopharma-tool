@@ -2,13 +2,15 @@ import { DataBasisEditor } from './DataBasisEditor.jsx';
 import { ComponentEditor } from './ComponentEditor.jsx';
 import { CatalogEditor } from './CatalogEditor.jsx';
 import { LogicEditor } from './LogicEditor.jsx';
+import { IntegrityPanel } from './IntegrityPanel.jsx';
 
 /**
- * Database tab: what the SOP data and the loading patterns were checked
- * against, then the editors for the SOP data itself. Stateless — App owns
- * the data.
+ * Database tab: the data integrity check, what the SOP data and the loading
+ * patterns were checked against, then the editors for the SOP data itself.
+ * Stateless — App owns the data.
  */
 export const DatabaseTab = ({
+    integrityIssues,
     dataBasis, dataBasisLabel, dataBasisCurrent, onRecordDataBasis,
     patternBasis, patternBasisLabel, patternBasisCurrent, onRecordPatternBasis,
     dbComponents, setDbComponents, dbCatalog, setDbCatalog,
@@ -16,6 +18,7 @@ export const DatabaseTab = ({
 }) => (
     <div>
         <h2 className="text-xl font-bold mb-4">⚙️ Database</h2>
+        <IntegrityPanel issues={integrityIssues} />
         <DataBasisEditor
             id="sop-data" title="📑 Data Basis (資料依據)" scope="Components、Catalog、示意圖與 BOM" example="SOP-000022 v9.0"
             dataBasis={dataBasis} dataBasisLabel={dataBasisLabel} isCurrent={dataBasisCurrent} onRecord={onRecordDataBasis}

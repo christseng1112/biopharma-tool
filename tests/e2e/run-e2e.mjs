@@ -503,6 +503,24 @@ scenario('A catalog rename reaches the plan already made', async ({ page }) => {
     ok('the assembly guide prints the new name', /\(renamed\)/.test(await page.textContent('.report-container')));
 });
 
+scenario('The data check flags a set left without a BOM, on the tab and in the panel', async ({ page }) => {
+    const dbTab = page.getByRole('button', { name: /Database/ });
+    ok('clean data: no badge on the tab', !/⚠️/.test(await dbTab.innerText()));
+    await dbTab.click();
+    ok('clean data: panel says the check passed', await page.locator('[data-integrity="ok"]').isVisible());
+
+    await page.waitForTimeout(AUTOSAVE_FLUSH_MS);
+    const saved = await readAutosave(page);
+    saved.database.bom['2'] = [];
+    await page.evaluate(s => localStorage.setItem('BIOPHARMA_AUTOSAVE', s), JSON.stringify(saved));
+    await page.reload();
+    await page.waitForSelector('#root h1');
+    ok('tab shows a badge', /⚠️\s*1/.test(await page.getByRole('button', { name: /Database/ }).innerText()));
+    await page.getByRole('button', { name: /Database/ }).click();
+    const panel = page.locator('[data-integrity="issues"]');
+    ok('panel names the set without a BOM', (await panel.isVisible()) && /No\. 2/.test(await panel.innerText()) && /沒有 BOM/.test(await panel.innerText()));
+});
+
 // ------------------------------------------------------------------ runner ---
 
 for (const { name, fn } of scenarios) {

@@ -9,6 +9,7 @@ import { APP_VERSION, AUTOSAVE_KEY, LEGACY_AUTOSAVE_KEYS, validateConfig } from 
 import { generatePickingListHTML, generateAssemblyGuideHTML, generateAttachment2PartAHTML } from '../lib/reports.js';
 import { assembledAmounts } from '../lib/forms.js';
 import { withCatalogNames, addAssignment } from '../lib/plan.js';
+import { checkDataIntegrity } from '../lib/integrity.js';
 import { downloadJson } from '../lib/download.js';
 import {
     sopDataFingerprint, makeDataBasis, defaultDataBasis, describeDataBasis,
@@ -36,6 +37,9 @@ export function App() {
     // Start empty, then populate in an effect so a data problem degrades
     // gracefully instead of preventing the App component from mounting.
     const [autoclavePatterns, setAutoclavePatterns] = useState([]);
+    // False until the effect below has loaded the patterns; until then an
+    // empty pattern list would make every item look unassigned.
+    const [patternsReady, setPatternsReady] = useState(false);
     const [autoclaveInventoryB, setAutoclaveInventoryB] = useState(DEFAULT_AUTOCLAVE_GROUP_B);
     const [autoclaveManualCart, setAutoclaveManualCart] = useState([]);
     // Lives here rather than in AutoclaveModule: that component unmounts when
@@ -77,6 +81,10 @@ export function App() {
         setPatternBasis(defaultPatternBasis());
     };
     const provenance = { sourceLabel: dataSource, dataBasisLabel, batchNo };
+    const integrityIssues = useMemo(() => checkDataIntegrity({
+        components: dbComponents, catalog: dbCatalog, diagrams: dbDiagrams, bom: dbBom,
+        patterns: patternsReady ? autoclavePatterns : undefined, groupB: autoclaveInventoryB
+    }), [dbComponents, dbCatalog, dbDiagrams, dbBom, autoclavePatterns, autoclaveInventoryB, patternsReady]);
 
     useEffect(() => {
         try {
@@ -85,6 +93,7 @@ export function App() {
             console.error("Pattern Initialization Error:", err);
             setConfigError({ title: "預設 Pattern 初始化失敗", details: [String(err)] });
         }
+        setPatternsReady(true);
     }, []);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -380,7 +389,7 @@ export function App() {
                     <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'assembly' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('assembly')}>📦 Assembly Guide</button>
                     <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'partA' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('partA')}>📝 附件 2 Part A</button>
                     <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'autoclave' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('autoclave')}>🌡️ Autoclave Calc</button>
-                    <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'database' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('database')}>⚙️ Database</button>
+                    <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'database' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('database')}>⚙️ Database{integrityIssues.length > 0 && <span className="ml-1 text-xs font-bold text-amber-700" title="資料檢查發現問題，詳見 Database 分頁">⚠️{integrityIssues.length}</span>}</button>
                 </div>
                 <div className="min-h-[500px]">
                     {activeTab === 'plan' && (
@@ -427,6 +436,7 @@ export function App() {
                     )}
                     {activeTab === 'database' && (
                         <DatabaseTab
+                            integrityIssues={integrityIssues}
                             dataBasis={dataBasis} dataBasisLabel={dataBasisLabel} onRecordDataBasis={handleRecordDataBasis}
                             dataBasisCurrent={!!dataBasis && dataBasis.fingerprint === sopFingerprint}
                             patternBasis={patternBasis} patternBasisLabel={patternBasisLabel} onRecordPatternBasis={handleRecordPatternBasis}
