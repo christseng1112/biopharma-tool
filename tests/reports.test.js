@@ -178,6 +178,21 @@ describe('provenance header', () => {
             .not.toContain('<img');
     });
 
+    it('records the data basis when given one', () => {
+        const html = provenanceHTML({ title: 'T', dataBasisLabel: 'SOP-000022 v9.0', generatedAt: at });
+        expect(html).toContain('資料依據');
+        expect(html).toContain('SOP-000022 v9.0');
+    });
+
+    it('omits the data basis row when none is given', () => {
+        expect(provenanceHTML({ title: 'T', generatedAt: at })).not.toContain('資料依據');
+    });
+
+    it('escapes the data basis label', () => {
+        expect(provenanceHTML({ title: 'T', dataBasisLabel: '<script>x</script>', generatedAt: at }))
+            .not.toContain('<script>');
+    });
+
     it('falls back to now when handed an invalid date', () => {
         expect(provenanceHTML({ title: 'T', generatedAt: new Date('nonsense') })).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
     });

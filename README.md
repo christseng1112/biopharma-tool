@@ -4,7 +4,7 @@
 
 本工具封裝於單一 HTML 檔案 `index.html` 中，無需伺服器部署，點擊即可在瀏覽器中運行。
 
-**目前版本：v30.11**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
+**目前版本：v30.12**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
 
 ---
 
@@ -12,7 +12,7 @@
 
 ### 🏗️ 1. 管組規劃 (Tubing Planner)
 
-基於 SOP-000022 標準，協助使用者規劃各製程階段所需的管組與耗材。
+基於 SOP-000022 標準，協助使用者規劃各製程階段所需的管組與耗材。內建資料依據 **SOP-000022 v9.0** 核對。
 
 - **製程階段管理**：自定義生產階段 (如 Production Medium, Harvest 等)。
 - **智慧庫存判斷**：自動識別所選管組是否為庫存品 (Stock) 或需自行組裝 (Custom Assembly)。
@@ -42,6 +42,7 @@
 
 - **設定檔管理**：支援 JSON 格式的完整設定匯出與匯入 (Export/Import)。匯入前會先做結構驗證，格式不符時**不會套用任何資料**，並在畫面上列出具體錯誤。
 - **自動存檔**：變更後 1 秒自動寫入瀏覽器 localStorage（key：`BIOPHARMA_AUTOSAVE`）。若存檔毀損或格式不符，原始內容會被備份到 `BIOPHARMA_AUTOSAVE_CORRUPT_<timestamp>` 並於畫面提示，不會被靜默覆蓋。
+- **資料依據 (Data Basis)**：記錄 SOP 資料（Components / Catalog / 示意圖 / BOM）核對所依據的文件與版本，並印在每份報表的來源區塊。資料在記錄後被修改時，報表會標示「記錄後資料已修改」。SOP 進版時，於 Database 分頁更新資料後記錄新版本即可。
 - **資料庫編輯器**：內建 GUI 介面，可新增／修改／刪除元件庫 (Components) 與目錄 (Catalog)，並編輯裝配圖 (Diagrams)、BOM 與滅菌模式 (Patterns)。刪除前會檢查是否仍被 BOM 或 Assignment 引用，被引用時拒絕刪除。
 - **錯誤處理**：渲染錯誤由 React Error Boundary 接住並顯示錯誤內容與復原選項，不會變成空白畫面；其餘錯誤由頁面內橫幅呈現。全程不使用 `alert()`。
 
@@ -74,6 +75,7 @@ src/
   lib/scheduler.js          simulateLoad / runGreedySimulation / calculateSchedule
   lib/reports.js            領料單與裝配工單的 HTML 產生器
   lib/config.js             APP_VERSION、存檔 key、validateConfig
+  lib/dataBasis.js          資料依據指紋與報表標示
   lib/download.js           檔案下載
   lib/globalErrorHandler.js 全域錯誤安全網
   data/defaults.js          預設資料集
@@ -131,6 +133,7 @@ npm run check           # test + build + verify:offline
 5. **⚙️ Database**
    - 新增／編輯／刪除元件庫與目錄項目，並編輯裝配圖與 BOM。
    - 變更需按各區塊的 **Save Changes** 才會套用；結果會以區塊內的訊息列回報。
+   - 依 SOP 核對完成後，於最上方 **Data Basis** 區塊輸入依據文件與版本（例：`SOP-000022 v9.0`）並記錄。
 6. **保存**：點擊左側 Sidebar 的 Export 下載 JSON 檔以保存當前進度。
 
 ---
@@ -145,6 +148,8 @@ npm run check           # test + build + verify:offline
 
 - 本工具完全運行於客戶端瀏覽器，不發出任何外部請求，也不會上傳任何數據。
 - 產生的 Picking List 與 Assembly Guide 是工具自動產生的參考文件，**非受控文件**；正式生產請依所屬品質系統的受控文件作業。
+- No.21 Pump Tubing Set 620 的兩種組裝方式分別為 No.21（末端 W, Mini TC）與 No.212（兩端 Empty End）。
+- v30.11 以前的自動存檔沒有資料依據，載入後顯示「未記錄」，請核對後於 Database 分頁記錄。
 - 預設資料中的 `1” Braided Silicone Tubing Set` 未被任何滅菌 Pattern 的 Zone 收錄，計算時會被列為 Unassignable。若需納入排程，請於 Database 分頁將其加入對應 Zone 的允許清單。
 
 ---

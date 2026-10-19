@@ -1,13 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icons } from './Icons.jsx';
 import { AutoclaveModule } from './AutoclaveModule.jsx';
 import { ComponentEditor } from './ComponentEditor.jsx';
 import { CatalogEditor } from './CatalogEditor.jsx';
 import { LogicEditor } from './LogicEditor.jsx';
+import { DataBasisEditor } from './DataBasisEditor.jsx';
 import { normalizePatterns, isPlainObject, reindexByNumber } from '../lib/normalize.js';
 import { APP_VERSION, AUTOSAVE_KEY, LEGACY_AUTOSAVE_KEYS, validateConfig } from '../lib/config.js';
 import { generatePickingListHTML, generateAssemblyGuideHTML } from '../lib/reports.js';
 import { downloadHtml, downloadJson } from '../lib/download.js';
+import { sopDataFingerprint, makeDataBasis, defaultDataBasis, describeDataBasis } from '../lib/dataBasis.js';
 import {
     DEFAULT_COMPONENTS, DEFAULT_CATALOG, DEFAULT_DIAGRAMS, DEFAULT_BOM,
     DEFAULT_STAGES, DEFAULT_AUTOCLAVE_GROUP_B, DEFAULT_AUTOCLAVE_PATTERNS_DATA
@@ -32,6 +34,19 @@ export function App() {
     // Identifies the dataset the reports were produced from — printed in the
     // provenance header so a sheet on the floor can be traced back to its source.
     const [dataSource, setDataSource] = useState(null);
+    // Which SOP revision the SOP data was checked against, plus the fingerprint
+    // of the data at that moment (see lib/dataBasis.js).
+    const [dataBasis, setDataBasis] = useState(() => defaultDataBasis({
+        components: DEFAULT_COMPONENTS, catalog: DEFAULT_CATALOG, diagrams: DEFAULT_DIAGRAMS, bom: DEFAULT_BOM
+    }));
+    const sopFingerprint = useMemo(
+        () => sopDataFingerprint({ components: dbComponents, catalog: dbCatalog, diagrams: dbDiagrams, bom: dbBom }),
+        [dbComponents, dbCatalog, dbDiagrams, dbBom]
+    );
+    const dataBasisLabel = describeDataBasis(dataBasis, sopFingerprint);
+    const handleRecordDataBasis = (reference) => setDataBasis(makeDataBasis(reference, {
+        components: dbComponents, catalog: dbCatalog, diagrams: dbDiagrams, bom: dbBom
+    }));
 
     useEffect(() => {
         try {
@@ -69,6 +84,7 @@ export function App() {
 
     const buildConfigPayload = () => ({
         version: APP_VERSION,
+        data_basis: dataBasis,
         assignments,
         stage_list: stageList,
         database: {
@@ -87,9 +103,15 @@ export function App() {
     // A5: one place where a validated config becomes application state.
     const applyConfig = (data, sourceLabel) => {
         setDataSource(sourceLabel || null);
+        // A config that replaces SOP data without saying what it was checked
+        // against (e.g. one written before v30.12) is reported as not recorded,
+        // rather than inheriting a basis that describes different data.
+        const db = data.database;
+        const replacesSopData = isPlainObject(db) && ['components', 'catalog', 'diagrams', 'bom'].some(k => db[k] !== undefined);
+        if (data.data_basis !== undefined) setDataBasis(data.data_basis);
+        else if (replacesSopData) setDataBasis(null);
         if (Array.isArray(data.assignments)) setAssignments(data.assignments);
         if (Array.isArray(data.stage_list)) setStageList(data.stage_list);
-        const db = data.database;
         if (isPlainObject(db)) {
             if (isPlainObject(db.components)) setDbComponents(db.components);
             if (isPlainObject(db.catalog)) setDbCatalog(reindexByNumber(db.catalog));
@@ -162,7 +184,7 @@ export function App() {
             }
         }, 1000);
         return () => clearTimeout(timer);
-    }, [assignments, stageList, dbComponents, dbCatalog, dbDiagrams, dbBom, autoclavePatterns, autoclaveInventoryB, autoclaveManualCart]);
+    }, [assignments, stageList, dbComponents, dbCatalog, dbDiagrams, dbBom, autoclavePatterns, autoclaveInventoryB, autoclaveManualCart, dataBasis]);
 
     const handleImport = (e) => {
         const file = e.target.files[0]; if (!file) return;
@@ -211,6 +233,7 @@ export function App() {
             setAutoclavePatterns(normalizePatterns(DEFAULT_AUTOCLAVE_PATTERNS_DATA));
             setAutoclaveInventoryB(DEFAULT_AUTOCLAVE_GROUP_B); setAutoclaveManualCart([]); setNewStage(""); setQty(1);
             setDataSource(null);
+            setDataBasis(defaultDataBasis({ components: DEFAULT_COMPONENTS, catalog: DEFAULT_CATALOG, diagrams: DEFAULT_DIAGRAMS, bom: DEFAULT_BOM }));
             setConfigError(null);
             setAutoSaveStatus("已重設為預設值");
             setTimeout(() => setAutoSaveStatus(""), 3000);
@@ -311,23 +334,23 @@ export function App() {
                     </div>)}
                     {activeTab === 'picking' && (
                         <div>
-                            <div dangerouslySetInnerHTML={{ __html: generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, { sourceLabel: dataSource }) }} />
+                            <div dangerouslySetInnerHTML={{ __html: generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, { sourceLabel: dataSource, dataBasisLabel }) }} />
                             <div className="mt-4 text-right">
                                 {/* Regenerated on click so the download carries its own generation time. */}
-                                <button className="st-btn" onClick={() => downloadHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, { sourceLabel: dataSource }), "Picking_List.html")}>📥 Download</button>
+                                <button className="st-btn" onClick={() => downloadHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, { sourceLabel: dataSource, dataBasisLabel }), "Picking_List.html")}>📥 Download</button>
                             </div>
                         </div>
                     )}
                     {activeTab === 'assembly' && (
                         <div>
-                            <div dangerouslySetInnerHTML={{ __html: generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, { sourceLabel: dataSource }) }} />
+                            <div dangerouslySetInnerHTML={{ __html: generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, { sourceLabel: dataSource, dataBasisLabel }) }} />
                             <div className="mt-4 text-right">
-                                <button className="st-btn" onClick={() => downloadHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, { sourceLabel: dataSource }), "Assembly_Guide.html")}>📥 Download</button>
+                                <button className="st-btn" onClick={() => downloadHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, { sourceLabel: dataSource, dataBasisLabel }), "Assembly_Guide.html")}>📥 Download</button>
                             </div>
                         </div>
                     )}
                     {activeTab === 'autoclave' && <AutoclaveModule plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
-                    {activeTab === 'database' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} dbBom={dbBom} setDbBom={setDbBom} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} assignments={assignments} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
+                    {activeTab === 'database' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><DataBasisEditor dataBasis={dataBasis} dataBasisLabel={dataBasisLabel} isCurrent={!!dataBasis && dataBasis.fingerprint === sopFingerprint} onRecord={handleRecordDataBasis} /><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} dbBom={dbBom} setDbBom={setDbBom} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} assignments={assignments} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
                 </div>
             </div>
         </div>

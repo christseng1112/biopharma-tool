@@ -37,10 +37,11 @@ export const CSS_STRING = `
  * dataset — and states plainly that it is not a controlled document.
  *
  * `sourceLabel` identifies the dataset: the imported filename, or a marker for
- * the built-in defaults. `generatedAt` is injectable so output is reproducible
+ * the built-in defaults. `dataBasisLabel` names the controlled document the
+ * data was checked against. `generatedAt` is injectable so output is reproducible
  * under test.
  */
-export function provenanceHTML({ title, sourceLabel, generatedAt = new Date(), appVersion = APP_VERSION } = {}) {
+export function provenanceHTML({ title, sourceLabel, dataBasisLabel, generatedAt = new Date(), appVersion = APP_VERSION } = {}) {
     const stamp = Number.isNaN(generatedAt?.getTime?.()) ? new Date() : generatedAt;
     const pad = (n) => String(n).padStart(2, '0');
     const formatted = `${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(stamp.getDate())} `
@@ -53,6 +54,8 @@ export function provenanceHTML({ title, sourceLabel, generatedAt = new Date(), a
         ['Tool version / 工具版本', `v${appVersion}`],
         ['Data source / 資料來源', sourceLabel || '(built-in defaults / 內建預設值)']
     ];
+    // Which SOP revision the data was checked against (see lib/dataBasis.js).
+    if (dataBasisLabel) rows.push(['Data basis / 資料依據', dataBasisLabel]);
 
     return '<div class="provenance"><table>'
         + rows.map(([k, v]) => `<tr><td class="k">${escapeHtml(k)}</td><td>${escapeHtml(v)}</td></tr>`).join("")

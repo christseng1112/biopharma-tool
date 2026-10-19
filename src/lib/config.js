@@ -1,7 +1,7 @@
 import { isPlainObject } from './normalize.js';
 
 /** Single source of truth for the version shown in the UI and written to exports. */
-export const APP_VERSION = "30.11";
+export const APP_VERSION = "30.12";
 
 export const AUTOSAVE_KEY = "BIOPHARMA_AUTOSAVE";
 
@@ -26,6 +26,16 @@ export const validateConfig = (data) => {
 
     if (data.assignments !== undefined && !Array.isArray(data.assignments)) errors.push("assignments 必須是陣列");
     if (data.stage_list !== undefined && !Array.isArray(data.stage_list)) errors.push("stage_list 必須是陣列");
+
+    const basis = data.data_basis;
+    if (basis !== undefined && basis !== null) {
+        if (!isPlainObject(basis)) {
+            errors.push("data_basis 必須是物件 {reference, fingerprint} 或 null");
+        } else {
+            if (typeof basis.reference !== 'string' || basis.reference.trim() === '') errors.push("data_basis.reference 必須是非空字串");
+            if (typeof basis.fingerprint !== 'string') errors.push("data_basis.fingerprint 必須是字串");
+        }
+    }
 
     const db = data.database;
     if (db !== undefined && !isPlainObject(db)) errors.push("database 必須是物件");
