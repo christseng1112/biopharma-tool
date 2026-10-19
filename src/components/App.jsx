@@ -1,16 +1,16 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Icons } from './Icons.jsx';
 import { AutoclaveModule } from './AutoclaveModule.jsx';
-import { ComponentEditor } from './ComponentEditor.jsx';
-import { CatalogEditor } from './CatalogEditor.jsx';
-import { LogicEditor } from './LogicEditor.jsx';
-import { DataBasisEditor } from './DataBasisEditor.jsx';
-import { QtyCell } from './QtyCell.jsx';
+import { PlanTab } from './PlanTab.jsx';
+import { DatabaseTab } from './DatabaseTab.jsx';
+import { ReportPanel } from './ReportPanel.jsx';
 import { normalizePatterns, isPlainObject, reindexByNumber } from '../lib/normalize.js';
 import { APP_VERSION, AUTOSAVE_KEY, LEGACY_AUTOSAVE_KEYS, validateConfig } from '../lib/config.js';
 import { generatePickingListHTML, generateAssemblyGuideHTML, generateAttachment2PartAHTML } from '../lib/reports.js';
 import { assembledAmounts } from '../lib/forms.js';
-import { downloadHtml, downloadJson, printHtml } from '../lib/download.js';
+import { withCatalogNames, addAssignment } from '../lib/plan.js';
+import { checkDataIntegrity } from '../lib/integrity.js';
+import { downloadJson } from '../lib/download.js';
 import {
     sopDataFingerprint, makeDataBasis, defaultDataBasis, describeDataBasis,
     patternsFingerprint, makePatternBasis, defaultPatternBasis
@@ -28,12 +28,18 @@ export function App() {
     const [dbBom, setDbBom] = useState(DEFAULT_BOM);
     const [stageList, setStageList] = useState(DEFAULT_STAGES);
     const [assignments, setAssignments] = useState([]);
+    // What every view of the plan reads: the stored assignments under the
+    // catalog's current names (see lib/plan.js). Saves keep the raw rows.
+    const plan = useMemo(() => withCatalogNames(assignments, dbCatalog), [assignments, dbCatalog]);
     const [activeTab, setActiveTab] = useState("plan");
 
     // --- SAFE INITIALIZATION ---
     // Start empty, then populate in an effect so a data problem degrades
     // gracefully instead of preventing the App component from mounting.
     const [autoclavePatterns, setAutoclavePatterns] = useState([]);
+    // False until the effect below has loaded the patterns; until then an
+    // empty pattern list would make every item look unassigned.
+    const [patternsReady, setPatternsReady] = useState(false);
     const [autoclaveInventoryB, setAutoclaveInventoryB] = useState(DEFAULT_AUTOCLAVE_GROUP_B);
     const [autoclaveManualCart, setAutoclaveManualCart] = useState([]);
     // Lives here rather than in AutoclaveModule: that component unmounts when
@@ -75,6 +81,10 @@ export function App() {
         setPatternBasis(defaultPatternBasis());
     };
     const provenance = { sourceLabel: dataSource, dataBasisLabel, batchNo };
+    const integrityIssues = useMemo(() => checkDataIntegrity({
+        components: dbComponents, catalog: dbCatalog, diagrams: dbDiagrams, bom: dbBom,
+        patterns: patternsReady ? autoclavePatterns : undefined, groupB: autoclaveInventoryB
+    }), [dbComponents, dbCatalog, dbDiagrams, dbBom, autoclavePatterns, autoclaveInventoryB, patternsReady]);
 
     useEffect(() => {
         try {
@@ -83,6 +93,7 @@ export function App() {
             console.error("Pattern Initialization Error:", err);
             setConfigError({ title: "預設 Pattern 初始化失敗", details: [String(err)] });
         }
+        setPatternsReady(true);
     }, []);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -99,7 +110,7 @@ export function App() {
     const togglePartAStage = (stage) => setPartAExcluded(prev =>
         prev.includes(stage) ? prev.filter(s => s !== stage) : [...prev, stage]);
     const partAHTML = () => generateAttachment2PartAHTML(
-        assembledAmounts(assignments, dbCatalog, partAStages),
+        assembledAmounts(plan, dbCatalog, partAStages),
         { stages: partAStages, provenance }
     );
 
@@ -335,7 +346,7 @@ export function App() {
     const qtyIsValid = Number.isFinite(qtyValue) && qtyValue > 0;
     const handleAddAssignment = () => {
         if (!qtyIsValid || !targetStage || !selectedTubingId) return;
-        setAssignments([...assignments, { id: newAssignmentId(), "Stage": targetStage, "SOP No.": parseInt(selectedTubingId, 10), "Name": selectedTubingData.Name, "Qty": qtyValue, "Is_Stock": useStock, "Material_Code": useStock ? selectedTubingData.Stock_Code : null }]);
+        setAssignments(addAssignment(assignments, { id: newAssignmentId(), "Stage": targetStage, "SOP No.": parseInt(selectedTubingId, 10), "Name": selectedTubingData.Name, "Qty": qtyValue, "Is_Stock": useStock, "Material_Code": useStock ? selectedTubingData.Stock_Code : null }));
     };
     const handleDeleteAssignment = (id) => { setAssignments(assignments.filter(a => a.id !== id)); };
     // QtyCell only commits positive integers, so this never writes NaN or 0.
@@ -378,52 +389,26 @@ export function App() {
                     <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'assembly' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('assembly')}>📦 Assembly Guide</button>
                     <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'partA' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('partA')}>📝 附件 2 Part A</button>
                     <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'autoclave' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('autoclave')}>🌡️ Autoclave Calc</button>
-                    <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'database' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('database')}>⚙️ Database</button>
+                    <button className={`px-4 py-2 mr-2 whitespace-nowrap ${activeTab === 'database' ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab('database')}>⚙️ Database{integrityIssues.length > 0 && <span className="ml-1 text-xs font-bold text-amber-700" title="資料檢查發現問題，詳見 Database 分頁">⚠️{integrityIssues.length}</span>}</button>
                 </div>
                 <div className="min-h-[500px]">
-                    {activeTab === 'plan' && (<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="md:col-span-1 border p-4 rounded bg-gray-50">
-                            <div className="mb-4">
-                                <label htmlFor="batchNo" className="block text-sm font-medium mb-1">批號 / 工單號 (Batch No.)</label>
-                                <input id="batchNo" className="w-full border p-2 text-sm rounded" value={batchNo} onChange={e => setBatchNo(e.target.value)} placeholder="印在所有報表；未填則留空白供手寫" />
-                            </div>
-                            <h3 className="text-xl font-bold mb-4">Stage Manager</h3>
-                            <div className="mb-4 space-y-2">
-                                <div className="flex gap-2"><input className="flex-1 border p-2 text-sm rounded" placeholder="New Stage" value={newStage} onChange={e => setNewStage(e.target.value)} /><button className="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center" onClick={handleAddStage}><Icons.Plus className="w-4 h-4" /></button></div>
-                                <div className="flex gap-2"><select className="flex-1 border p-2 text-sm rounded h-10" value={delStage} onChange={e => setDelStage(e.target.value)}><option value="(Select)">(Select)</option>{stageList.map(s => <option key={s} value={s}>{s}</option>)}</select><button className="bg-red-500 text-white w-10 h-10 rounded flex items-center justify-center" onClick={handleRemoveStage} disabled={delStage === "(Select)"}><Icons.Minus className="w-4 h-4" /></button></div>
-                            </div>
-                            <h3 className="text-xl font-bold mb-4">Assignments</h3>
-                            <div className="flex flex-col gap-4">
-                                <div><label className="block text-sm font-medium mb-1">Stage</label><select className="w-full border p-2 rounded" value={targetStage} onChange={e => setTargetStage(e.target.value)}>{stageList.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-                                <div><label className="block text-sm font-medium mb-1">Tubing</label><select className="w-full border p-2 rounded" value={selectedTubingId} onChange={e => setSelectedTubingId(e.target.value)}>{Object.entries(dbCatalog).map(([k, v]) => (<option key={k} value={k}>No. {k} - {v.Name}</option>))}</select></div>
-                                <div className="flex items-center gap-2"><input type="checkbox" id="useStock" checked={useStock} onChange={e => setUseStock(e.target.checked)} /><label htmlFor="useStock" className="text-sm font-medium">Use Stock?</label></div>
-                                <div><label className="block text-sm font-medium mb-1">Qty</label><input type="number" className={`w-full border p-2 rounded ${qtyIsValid ? '' : 'border-red-400 bg-red-50'}`} min="1" value={qty} onChange={e => setQty(e.target.value)} />{!qtyIsValid && <span className="text-xs text-red-600">請輸入大於 0 的整數</span>}</div>
-                                <button className="st-btn w-full disabled:opacity-50" onClick={handleAddAssignment} disabled={!qtyIsValid || (useStock && !stockCodeExists)}>Add</button>
-                            </div>
-                        </div>
-                        <div className="md:col-span-2">
-                            <h3 className="text-xl font-bold mb-4">Current Assignments</h3>
-                            {assignments.length === 0 ? <div className="bg-blue-50 p-4 rounded text-blue-700">No assignments yet.</div> : (<div>{[...new Set(assignments.map(a => a.Stage))].map(stage => (<div key={stage} className="mb-6"><div className="font-bold text-lg mb-2 text-gray-700">📍 {stage}</div><table className="w-full border-collapse text-sm"><thead><tr className="bg-gray-100 border-b"><th className="p-2 text-left">SOP No.</th><th className="p-2 text-left">Name</th><th className="p-2 text-left">Qty</th><th className="p-2 text-left">Is Stock</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{assignments.filter(a => a.Stage === stage).map((row, idx) => (<tr key={row.id || idx} className="border-b"><td className="p-2">{row['SOP No.']}</td><td className="p-2">{row.Name}</td><td className="p-2"><QtyCell value={row.Qty} onCommit={v => handleUpdateAssignmentQty(row.id, v)} /></td><td className="p-2">{row.Is_Stock ? "Yes" : "No"}</td><td className="p-2 text-center"><button onClick={() => handleDeleteAssignment(row.id)} className="text-red-500 hover:text-red-700"><Icons.Trash2 className="w-4 h-4" /></button></td></tr>))}</tbody></table></div>))}</div>)}
-                        </div>
-                    </div>)}
+                    {activeTab === 'plan' && (
+                        <PlanTab
+                            batchNo={batchNo} setBatchNo={setBatchNo}
+                            stageList={stageList} newStage={newStage} setNewStage={setNewStage} onAddStage={handleAddStage}
+                            delStage={delStage} setDelStage={setDelStage} onRemoveStage={handleRemoveStage}
+                            dbCatalog={dbCatalog} targetStage={targetStage} setTargetStage={setTargetStage}
+                            selectedTubingId={selectedTubingId} setSelectedTubingId={setSelectedTubingId}
+                            useStock={useStock} setUseStock={setUseStock} stockCodeExists={stockCodeExists}
+                            qty={qty} setQty={setQty} qtyIsValid={qtyIsValid} onAddAssignment={handleAddAssignment}
+                            assignments={plan} onUpdateQty={handleUpdateAssignmentQty} onDeleteAssignment={handleDeleteAssignment}
+                        />
+                    )}
                     {activeTab === 'picking' && (
-                        <div>
-                            <div dangerouslySetInnerHTML={{ __html: generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, provenance) }} />
-                            <div className="mt-4 text-right">
-                                {/* Regenerated on click so the download carries its own generation time. */}
-                                <button className="st-btn mr-2" onClick={() => printHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, provenance))}>🖨️ Print</button>
-                                <button className="st-btn" onClick={() => downloadHtml(generatePickingListHTML(assignments, dbBom, dbComponents, dbCatalog, provenance), "Picking_List.html")}>📥 Download</button>
-                            </div>
-                        </div>
+                        <ReportPanel render={() => generatePickingListHTML(plan, dbBom, dbComponents, dbCatalog, provenance)} filename="Picking_List.html" />
                     )}
                     {activeTab === 'assembly' && (
-                        <div>
-                            <div dangerouslySetInnerHTML={{ __html: generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, provenance) }} />
-                            <div className="mt-4 text-right">
-                                <button className="st-btn mr-2" onClick={() => printHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, provenance))}>🖨️ Print</button>
-                                <button className="st-btn" onClick={() => downloadHtml(generateAssemblyGuideHTML(stageList, assignments, dbBom, dbComponents, dbDiagrams, provenance), "Assembly_Guide.html")}>📥 Download</button>
-                            </div>
-                        </div>
+                        <ReportPanel render={() => generateAssemblyGuideHTML(stageList, plan, dbBom, dbComponents, dbDiagrams, provenance)} filename="Assembly_Guide.html" />
                     )}
                     {activeTab === 'partA' && (
                         <div>
@@ -435,15 +420,31 @@ export function App() {
                                     </label>
                                 ))}
                             </div>
-                            <div dangerouslySetInnerHTML={{ __html: partAHTML() }} />
-                            <div className="mt-4 text-right">
-                                <button className="st-btn mr-2" onClick={() => printHtml(partAHTML())}>🖨️ Print</button>
-                                <button className="st-btn" onClick={() => downloadHtml(partAHTML(), "SOP-000022_Attachment2_PartA.html")}>📥 Download</button>
-                            </div>
+                            <ReportPanel render={partAHTML} filename="SOP-000022_Attachment2_PartA.html" />
                         </div>
                     )}
-                    {activeTab === 'autoclave' && <AutoclaveModule provenance={{ ...provenance, patternBasisLabel }} includeStock={autoclaveIncludeStock} setIncludeStock={setAutoclaveIncludeStock} onRestoreDefaultPatterns={handleRestoreDefaultPatterns} plannerAssignments={assignments} dbCatalog={dbCatalog} patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns} inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB} manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart} />}
-                    {activeTab === 'database' && (<div><h2 className="text-xl font-bold mb-4">⚙️ Database</h2><DataBasisEditor id="sop-data" title="📑 Data Basis (資料依據)" scope="Components、Catalog、示意圖與 BOM" example="SOP-000022 v9.0" dataBasis={dataBasis} dataBasisLabel={dataBasisLabel} isCurrent={!!dataBasis && dataBasis.fingerprint === sopFingerprint} onRecord={handleRecordDataBasis} /><DataBasisEditor id="patterns" title="📑 Pattern Basis (滅菌 Pattern 依據)" scope="Autoclave 分頁的滅菌 Pattern" example="SOP-000077 v11.0" dataBasis={patternBasis} dataBasisLabel={patternBasisLabel} isCurrent={!!patternBasis && patternBasis.fingerprint === patternFingerprint} onRecord={handleRecordPatternBasis} /><ComponentEditor dbComponents={dbComponents} setDbComponents={setDbComponents} dbBom={dbBom} /><CatalogEditor dbCatalog={dbCatalog} setDbCatalog={setDbCatalog} dbBom={dbBom} setDbBom={setDbBom} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} assignments={assignments} /><LogicEditor dbCatalog={dbCatalog} dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} dbComponents={dbComponents} /></div>)}
+                    {activeTab === 'autoclave' && (
+                        <AutoclaveModule
+                            provenance={{ ...provenance, patternBasisLabel }}
+                            includeStock={autoclaveIncludeStock} setIncludeStock={setAutoclaveIncludeStock}
+                            onRestoreDefaultPatterns={handleRestoreDefaultPatterns}
+                            plannerAssignments={plan} dbCatalog={dbCatalog}
+                            patternsList={autoclavePatterns} setPatternsList={setAutoclavePatterns}
+                            inventoryB={autoclaveInventoryB} setInventoryB={setAutoclaveInventoryB}
+                            manualCart={autoclaveManualCart} setManualCart={setAutoclaveManualCart}
+                        />
+                    )}
+                    {activeTab === 'database' && (
+                        <DatabaseTab
+                            integrityIssues={integrityIssues}
+                            dataBasis={dataBasis} dataBasisLabel={dataBasisLabel} onRecordDataBasis={handleRecordDataBasis}
+                            dataBasisCurrent={!!dataBasis && dataBasis.fingerprint === sopFingerprint}
+                            patternBasis={patternBasis} patternBasisLabel={patternBasisLabel} onRecordPatternBasis={handleRecordPatternBasis}
+                            patternBasisCurrent={!!patternBasis && patternBasis.fingerprint === patternFingerprint}
+                            dbComponents={dbComponents} setDbComponents={setDbComponents} dbCatalog={dbCatalog} setDbCatalog={setDbCatalog}
+                            dbDiagrams={dbDiagrams} setDbDiagrams={setDbDiagrams} dbBom={dbBom} setDbBom={setDbBom} assignments={assignments}
+                        />
+                    )}
                 </div>
             </div>
         </div>

@@ -4,7 +4,7 @@
 
 本工具封裝於單一 HTML 檔案 `index.html` 中，無需伺服器部署，點擊即可在瀏覽器中運行。
 
-**目前版本：v30.18**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
+**目前版本：v30.19**（版本號的唯一來源是 `index.html` 中的 `APP_VERSION` 常數；畫面標題與匯出的設定檔皆以此為準）
 
 ---
 
@@ -28,12 +28,12 @@
 
 - **自動資料串接**：直接從 Planner 匯入需滅菌的「非庫存管組」，無需重複輸入。
 - **混合排程**：支援自動匯入的管組 (Group A) 與手動加入的器具配件 (Group B) 混合計算。
-- **智慧排程演算法**：根據預設的滅菌模式 (Pattern 1-10) 與區域限制 (Zone Rules)，自動計算最少所需的滅菌循環次數。
+- **智慧排程演算法**：根據滅菌模式 (Pattern 1-11) 與區域限制 (Zone Rules)，自動計算最少所需的滅菌循環次數。每次計算都會在固定的搜尋預算（10,000 個節點，與電腦速度無關）內窮舉 Pattern 組合，並以下界剪枝與重複狀態剪枝縮小搜尋範圍；一般批次可在預算內完成並證明為最少鍋數。
 - **複雜規則檢核**：支援進階限制邏輯（例如：某區域雖然容量為 6，但剪刀最多只能放 2 把）。
 - **結果具決定性**：候選排序為「受 rule 限制者優先 → 數量遞減 → 名稱」，同一組品項無論加入順序為何都得到相同排程。
 - **標示解的品質**：排程標題旁的徽章顯示
-  - **最佳解 (Optimal)** — 已窮舉所有 Pattern 組合，在目前的裝填規則下無更短排程
-  - **近似解 (Heuristic)** — 品項過多或搜尋預算用盡，僅提供貪婪解
+  - **最佳解 (Optimal)** — 已窮舉所有 Pattern 組合（或貪婪解已達下界），在目前的裝填規則下無更短排程
+  - **近似解 (Heuristic)** — 搜尋預算用盡，僅提供貪婪解
   - **不完整 (Incomplete)** — 有品項未能排入，請見下方警示
 - **附件 2 Part B (Sterilization Records)**：每鍋排程卡片標示管組編號 (No.)，並產生可複製的 `13 (2) / 21 (1)` 字串與套數；排程下方提供完整 Part B 表可下載。Load # 為排程順序，Cycle No.、Expiry Date、簽名欄位留空供現場填寫。
 - **未排程項目一律回報**，分為兩類：
@@ -54,6 +54,7 @@
 - **資料依據 (Data Basis)**：記錄 SOP 資料（Components / Catalog / 示意圖 / BOM）核對所依據的文件與版本，並印在每份報表的來源區塊。資料在記錄後被修改時，報表會標示「記錄後資料已修改」。SOP 進版時，於 Database 分頁更新資料後記錄新版本即可。
 - **Pattern 依據 (Pattern Basis)**：滅菌 Pattern 另有一份依據（預設 SOP-000077 v11.0），印在滅菌排程表與附件 2 Part B，規則同上。
 - **批號與列印**：Plan 分頁輸入的批號／工單號會印在所有報表；未填則印一條空白線供手寫。每份報表都有 🖨️ Print，跨頁重複表頭、表格列不被切斷；紙張與直向／橫向於列印對話框選擇。
+- **資料檢查**：Database 分頁頂部自動檢查編輯或匯入後的資料——缺 BOM、BOM 料號不在 Components（錯誤）；缺示意圖、管組或 Group B 器具沒有任何滅菌 Zone 可放、Zone 中對不到品項的名稱、限制中不在允許清單的品項（警告）。有問題時分頁標籤顯示數量。
 - **資料庫編輯器**：內建 GUI 介面，可新增／修改／刪除元件庫 (Components) 與目錄 (Catalog)，並編輯裝配圖 (Diagrams)、BOM 與滅菌模式 (Patterns)。刪除前會檢查是否仍被 BOM 或 Assignment 引用，被引用時拒絕刪除。
 - **錯誤處理**：渲染錯誤由 React Error Boundary 接住並顯示錯誤內容與復原選項，不會變成空白畫面；其餘錯誤由頁面內橫幅呈現。全程不使用 `alert()`。
 
@@ -89,13 +90,17 @@ src/
   lib/config.js             APP_VERSION、存檔 key、validateConfig
   lib/dataBasis.js          資料依據指紋與報表標示
   lib/forms.js              SOP-000022 附件 2 Part A / Part B 的編號對應與彙總
+  lib/plan.js               規劃的讀取（使用 Catalog 現名）與重複加入合併
+  lib/integrity.js          資料完整性檢查
   lib/format.js             時間戳格式化（報表來源區塊與匯出檔名共用）
   lib/types.js              JSDoc typedef（核心資料形狀，無執行期程式碼）
   lib/download.js           檔案下載
   lib/globalErrorHandler.js 全域錯誤安全網
   data/defaults.js          預設資料集
-  components/               Icons、Notice、ErrorBoundary、三個編輯器、
-                            AutoclaveModule、App
+  components/               App（狀態）、PlanTab、DatabaseTab、AutoclaveModule、
+                            ReportPanel（預覽／列印／下載）、IntegrityPanel、
+                            DataBasisEditor、三個資料編輯器、QtyCell、
+                            Icons、Notice、ErrorBoundary
   main.jsx                  進入點
   styles.css                Tailwind directives + 專案樣式
 tests/                      Vitest 單元測試
@@ -151,6 +156,8 @@ CI（GitHub Actions，`.github/workflows/check.yml`）在每次 push / PR 執行
    - 選擇 SOP 管組編號並輸入數量（數量必須是大於 0 的整數，否則 Add 按鈕會停用）。
    - 系統會提示該項目是否為庫存品。
    - 已加入的項目可直接在 Current Assignments 修改數量；只接受大於 0 的整數。
+   - 同一階段重複加入同一管組（庫存設定相同）會累加到既有那一列，不會新增第二列。
+   - Catalog 改名後，既有規劃與所有報表、排程都會自動使用新名稱。
 3. **📋 Picking List / 📦 Assembly Guide / 📝 附件 2 Part A**
    - 查看、列印 (🖨️ Print) 並下載領料單、組裝工單與附件 2 Part A；Part A 可勾選要納入的製程階段。
    - 每份報表的標題下方均附有來源區塊：產生時間、工具版本、資料來源，以及「非受控文件」聲明。

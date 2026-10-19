@@ -11,6 +11,20 @@ const total = (items) => items.reduce((s, i) => s + i.qty, 0);
 const loadedCount = (schedule) =>
     schedule.reduce((s, c) => s + c.loadedItems.reduce((n, l) => n + parseInt(l.match(/\] (\d+)x /)[1], 10), 0), 0);
 
+// A load where greedy's first pick (the pattern that loads the most right
+// now) leads to 3 cycles while 2 suffice. The lower bound is 2, so greedy's
+// answer cannot be proven and only the search finds the shorter schedule.
+// Found by randomized search over small instances; kept verbatim.
+const greedyTrap = {
+    patterns: [
+        pattern([{ name: 'Z1', capacity: 4, allowed: ['C', 'D'] }], 1),
+        pattern([{ name: 'Z1', capacity: 3, allowed: ['A'] }, { name: 'Z2', capacity: 3, allowed: ['B'] }], 2),
+        pattern([{ name: 'Z0', capacity: 4, allowed: ['B', 'D'] }, { name: 'Z1', capacity: 5, allowed: ['C'] }], 3),
+        pattern([{ name: 'Z0', capacity: 5, allowed: ['A', 'B', 'C'] }], 4)
+    ],
+    inventory: [{ item: 'A', qty: 2 }, { item: 'B', qty: 4 }, { item: 'C', qty: 4 }, { item: 'D', qty: 3 }]
+};
+
 describe('simulateLoad', () => {
     it('fills a zone up to its capacity', () => {
         const r = simulateLoad([{ item: 'W', qty: 10 }], pattern([{ name: 'Z', capacity: 4, allowed: ['W'] }]));
@@ -162,17 +176,14 @@ describe('calculateSchedule', () => {
     });
 
     it('backtracks to a shorter schedule than the greedy first pick', () => {
-        // Greedy takes Wide first (loads 4), leaving A and B needing a cycle each = 3 cycles.
-        // Splitting across the two narrow patterns finishes in 2.
-        const patterns = [
-            pattern([{ name: 'Wide', capacity: 4, allowed: ['A', 'B'] }], 1),
-            pattern([{ name: 'NarrowA', capacity: 3, allowed: ['A'] }], 2),
-            pattern([{ name: 'NarrowB', capacity: 3, allowed: ['B'] }], 3)
-        ];
-        const r = calculateSchedule([{ item: 'A', qty: 3 }, { item: 'B', qty: 3 }], patterns);
+        // The previous fixture here never actually needed backtracking: with
+        // the deterministic candidate order greedy already found 2 cycles.
+        const greedyOnly = calculateSchedule(greedyTrap.inventory, greedyTrap.patterns, { maxIterations: 0 });
+        expect(greedyOnly.schedule).toHaveLength(3);
+        const r = calculateSchedule(greedyTrap.inventory, greedyTrap.patterns);
         expect(r.schedule).toHaveLength(2);
         expect(r.unscheduled).toEqual([]);
-        expect(loadedCount(r.schedule)).toBe(6);
+        expect(loadedCount(r.schedule)).toBe(13);
     });
 
     it('does not mutate the inventory it was given', () => {
@@ -245,8 +256,8 @@ describe('structured load entries', () => {
     };
 
     it('mirror the display strings on the greedy path', () => {
-        // 60 items skips the backtracking search, so this is the greedy schedule.
-        const r = calculateSchedule([{ item: 'W', qty: 60 }], [pattern([{ name: 'Z', capacity: 7, allowed: ['W'] }])]);
+        // A zero search budget leaves the greedy schedule standing.
+        const r = calculateSchedule(greedyTrap.inventory, greedyTrap.patterns, { maxIterations: 0 });
         expect(r.quality).toBe(QUALITY.HEURISTIC);
         r.schedule.forEach(entriesMatchStrings);
     });
@@ -314,10 +325,17 @@ describe('result quality', () => {
         expect(r.quality).toBe(QUALITY.OPTIMAL);
     });
 
-    it('reports heuristic when there are too many items to search', () => {
-        const r = calculateSchedule([{ item: 'W', qty: 60 }], [pattern([{ name: 'Z', capacity: 5, allowed: ['W'] }])]);
+    it('reports heuristic when the search runs out of budget', () => {
+        const r = calculateSchedule(greedyTrap.inventory, greedyTrap.patterns, { maxIterations: 0 });
         expect(r.quality).toBe(QUALITY.HEURISTIC);
         expect(r.unscheduled).toEqual([]);
+        expect(r.schedule).toHaveLength(3);   // greedy's answer; 2 exists
+    });
+
+    it('proves a greedy schedule optimal when it meets the lower bound, without searching', () => {
+        // 60 of W, at most 5 per cycle: 12 cycles is the floor, and greedy finds 12.
+        const r = calculateSchedule([{ item: 'W', qty: 60 }], [pattern([{ name: 'Z', capacity: 5, allowed: ['W'] }])], { maxIterations: 0 });
+        expect(r.quality).toBe(QUALITY.OPTIMAL);
         expect(r.schedule).toHaveLength(12);
     });
 
@@ -329,10 +347,15 @@ describe('result quality', () => {
         expect(r.quality).toBe(QUALITY.INCOMPLETE);
     });
 
-    it('does not claim optimal for a greedy-only answer', () => {
-        // 60 items is above BACKTRACK_ITEM_LIMIT, so no search runs.
-        const r = calculateSchedule([{ item: 'W', qty: 60 }], [pattern([{ name: 'Z', capacity: 7, allowed: ['W'] }])]);
+    it('does not claim optimal for a greedy-only answer the bound cannot prove', () => {
+        const r = calculateSchedule(greedyTrap.inventory, greedyTrap.patterns, { maxIterations: 0 });
         expect(r.quality).not.toBe(QUALITY.OPTIMAL);
+    });
+
+    it('finds the shorter schedule greedy misses once the search may run', () => {
+        const r = calculateSchedule(greedyTrap.inventory, greedyTrap.patterns);
+        expect(r.quality).toBe(QUALITY.OPTIMAL);
+        expect(r.schedule).toHaveLength(2);
     });
 });
 
@@ -391,5 +414,32 @@ describe('default patterns match SOP-000077 v11.0', () => {
         expect(run('pH Probe (bellows sheath)')).toEqual(['P04']);
         expect(run('DO Probe (click-in sheath)')).toEqual(['P10']);
         expect(run('pH Probe (click-in sheath)')).toEqual(['P10']);
+    });
+});
+
+// The search used to be skipped above 50 items. Typical loads now search to
+// completion inside the fixed budget, so the badge can say "optimal".
+describe('search on realistic loads', () => {
+    const patterns = normalizePatterns(DEFAULT_AUTOCLAVE_PATTERNS_DATA);
+    const n = (sopNo) => normalizeName(DEFAULT_CATALOG[sopNo].Name);
+    const typical = [[1, 4], [3, 2], [4, 2], [5, 2], [9, 2], [11, 2], [2, 2], [7, 2], [13, 2], [15, 2], [17, 2], [21, 2], [23, 2], [24, 2]]
+        .map(([k, qty]) => ({ item: n(k), qty }))
+        .concat([{ item: 'Forceps', qty: 30 }, { item: '3/4 Manual Valve', qty: 3 }]);
+
+    it('proves a typical 63-item USP load optimal', () => {
+        const r = calculateSchedule(typical, patterns);
+        expect(r.quality).toBe(QUALITY.OPTIMAL);
+        expect(r.schedule).toHaveLength(5);
+    });
+
+    it('never needs more cycles than greedy alone', () => {
+        const everything = [...new Set([
+            ...Object.values(DEFAULT_CATALOG).map(c => normalizeName(c.Name)),
+            ...DEFAULT_AUTOCLAVE_GROUP_B.map(normalizeName)
+        ])].map(item => ({ item, qty: 2 }));
+        [typical, everything].forEach(inv => {
+            const greedy = calculateSchedule(inv, patterns, { maxIterations: 0 });
+            expect(calculateSchedule(inv, patterns).schedule.length).toBeLessThanOrEqual(greedy.schedule.length);
+        });
     });
 });

@@ -75,6 +75,7 @@ export const CatalogEditor = ({ dbCatalog, setDbCatalog, dbBom, dbDiagrams, setD
             <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 mb-2">
                 ⚠️ 修改名稱時請注意：滅菌 Pattern 的 Zone 是以<strong>名稱</strong>比對品項。
                 改名後需同步更新 Autoclave 分頁中對應 Zone 的允許清單，否則該品項會被列為 Unassignable。
+                既有的規劃會自動改用新名稱，不需重新加入。
             </p>
             {pendingDeletes.length > 0 && (
                 <p className="text-xs text-red-800 bg-red-50 border border-red-200 rounded p-2 mb-2">
