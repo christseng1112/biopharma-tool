@@ -1,3 +1,5 @@
+/** @typedef {import('./types.js').Pattern} Pattern */
+
 /**
  * Item names arrive from several sources that spell the same thing differently:
  * the catalog, hand-maintained autoclave pattern zones, and imported config
@@ -33,6 +35,8 @@ export const escapeHtml = (value) => {
  * autosave load. Initialization and reset previously carried duplicated copies
  * of this and the import/autosave paths had none, which broke zone matching for
  * any config that had not already been normalized.
+ * @param {Pattern[]|undefined} patterns
+ * @returns {Pattern[]}
  */
 export const normalizePatterns = (patterns) => (patterns || []).map(p => ({
     ...p,
@@ -45,6 +49,10 @@ export const normalizePatterns = (patterns) => (patterns || []).map(p => ({
     }))
 }));
 
+/**
+ * @param {unknown} v
+ * @returns {v is Record<string, any>} A type predicate, so callers narrow.
+ */
 export const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** Catalog / diagrams / bom are keyed by numeric SOP No.; JSON turns those into strings. */

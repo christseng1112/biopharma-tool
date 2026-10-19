@@ -7,6 +7,12 @@
  * 2 of them may be scissors).
  */
 
+/** @typedef {import('./types.js').InventoryItem} InventoryItem */
+/** @typedef {import('./types.js').Pattern} Pattern */
+/** @typedef {import('./types.js').ScheduleCycle} ScheduleCycle */
+/** @typedef {import('./types.js').ScheduleResult} ScheduleResult */
+/** @typedef {import('./types.js').LoadedEntry} LoadedEntry */
+
 /** Hard ceiling on cycles in one schedule. Anything beyond this is reported, never dropped. */
 export const MAX_CYCLES = 100;
 
@@ -41,7 +47,12 @@ const zoneCandidateOrder = (zone) => (a, b) =>
     || (b.qty - a.qty)
     || String(a.item).localeCompare(String(b.item));
 
-/** Load as much of `inventory` as fits into a single run of `pattern`. */
+/**
+ * Load as much of `inventory` as fits into a single run of `pattern`.
+ * @param {InventoryItem[]} inventory
+ * @param {Pattern} pattern
+ * @returns {{loadedCount: number, loadPlan: string[], loadedEntries: LoadedEntry[], remainingInv: InventoryItem[]}}
+ */
 export const simulateLoad = (inventory, pattern) => {
     const tempInv = inventory.map(i => ({ ...i }));
     let totalLoaded = 0;
@@ -86,6 +97,9 @@ export const simulateLoad = (inventory, pattern) => {
  * cycle ceiling and the "nothing loadable" break) used to discard whatever was
  * left, so the caller saw a schedule that silently covered fewer items than
  * were requested.
+ * @param {InventoryItem[]} inventory
+ * @param {Pattern[]} patterns
+ * @returns {{schedule: ScheduleCycle[], remaining: InventoryItem[]}}
  */
 export const runGreedySimulation = (inventory, patterns) => {
     let currentInventory = inventory.map(i => ({ ...i }));
@@ -109,8 +123,13 @@ export const runGreedySimulation = (inventory, patterns) => {
     return { schedule, remaining };
 };
 
-/** How the returned schedule was arrived at — surfaced so the number is not over-trusted. */
-export const QUALITY = {
+/**
+ * How the returned schedule was arrived at — surfaced so the number is not
+ * over-trusted. Frozen so the values keep their literal types (and so nothing
+ * can reassign them at runtime).
+ * @satisfies {Record<string, ScheduleResult['quality']>}
+ */
+export const QUALITY = /** @type {const} */ ({
     /**
      * Exhaustive search over pattern sequences completed without hitting the
      * iteration budget: no shorter sequence exists *given this packing rule*.
@@ -122,7 +141,7 @@ export const QUALITY = {
     HEURISTIC: 'heuristic',
     /** Some items could not be placed at all. */
     INCOMPLETE: 'incomplete'
-};
+});
 
 /**
  * Build a sterilization schedule.
@@ -135,6 +154,9 @@ export const QUALITY = {
  * `quality` says how much to trust the cycle count: exhaustive search only runs
  * below BACKTRACK_ITEM_LIMIT items and within MAX_ITERATIONS, and previously
  * degraded to the greedy answer with no indication that it had.
+ * @param {InventoryItem[]} inventory
+ * @param {Pattern[]} patterns
+ * @returns {ScheduleResult}
  */
 export const calculateSchedule = (inventory, patterns) => {
     const allAllowedItems = new Set(patterns.flatMap(p => (p.zones || []).flatMap(z => z.allowed)));

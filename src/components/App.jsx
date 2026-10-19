@@ -11,6 +11,7 @@ import { generatePickingListHTML, generateAssemblyGuideHTML, generateAttachment2
 import { assembledAmounts } from '../lib/forms.js';
 import { downloadHtml, downloadJson } from '../lib/download.js';
 import { sopDataFingerprint, makeDataBasis, defaultDataBasis, describeDataBasis } from '../lib/dataBasis.js';
+import { formatFileStamp } from '../lib/format.js';
 import {
     DEFAULT_COMPONENTS, DEFAULT_CATALOG, DEFAULT_DIAGRAMS, DEFAULT_BOM,
     DEFAULT_STAGES, DEFAULT_AUTOCLAVE_GROUP_B, DEFAULT_AUTOCLAVE_PATTERNS_DATA
@@ -88,6 +89,8 @@ export function App() {
     }, [selectedTubingId, stockCodeExists]);
 
     // --- AUTO SAVE ---
+    /** How many quarantined copies of an unreadable autosave to keep. */
+    const CORRUPT_BACKUP_LIMIT = 3;
     const [autoSaveStatus, setAutoSaveStatus] = useState("");
     // A4: block the debounced writer until the load attempt has resolved, so a
     // failed load can never be overwritten by default state one second later.
@@ -115,7 +118,7 @@ export function App() {
     const applyConfig = (data, sourceLabel) => {
         setDataSource(sourceLabel || null);
         // A config that replaces SOP data without saying what it was checked
-        // against (e.g. one written before v30.12) is reported as not recorded,
+        // against (e.g. one written before v30.14) is reported as not recorded,
         // rather than inheriting a basis that describes different data.
         const db = data.database;
         const replacesSopData = isPlainObject(db) && ['components', 'catalog', 'diagrams', 'bom'].some(k => db[k] !== undefined);
@@ -156,7 +159,16 @@ export function App() {
             // A4: never discard data we could not read — park it under a
             // timestamped key so it stays recoverable, and tell the user.
             const backupKey = `${AUTOSAVE_KEY}_CORRUPT_${Date.now()}`;
-            try { localStorage.setItem(backupKey, saved); } catch (e) { console.error("Backup failed", e); }
+            try {
+                // Backups accumulated without bound. localStorage has a quota,
+                // and filling it would make the ordinary autosave fail — losing
+                // live work to protect stale copies. Keep the newest few.
+                const prefix = `${AUTOSAVE_KEY}_CORRUPT_`;
+                const older = Object.keys(localStorage).filter(k => k.startsWith(prefix)).sort();
+                older.slice(0, Math.max(0, older.length - (CORRUPT_BACKUP_LIMIT - 1)))
+                    .forEach(k => localStorage.removeItem(k));
+                localStorage.setItem(backupKey, saved);
+            } catch (e) { console.error("Backup failed", e); }
             console.error(reason, details);
             setConfigError({
                 title: "自動存檔讀取失敗，已改用預設資料",
@@ -233,7 +245,10 @@ export function App() {
     };
 
     const handleExport = () => {
-        downloadJson(buildConfigPayload(), "biopharma_prod_config.json");
+        // Timestamped so successive exports do not overwrite each other in the
+        // downloads folder, and so the filename itself identifies which save it
+        // is when it later shows up as a report's Data source.
+        downloadJson(buildConfigPayload(), `biopharma_prod_config_${formatFileStamp(new Date())}.json`);
     };
 
     const handleResetDefaults = () => {
